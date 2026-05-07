@@ -10,66 +10,112 @@ export default function Login() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background: '#0f7f68'
+        background: 'linear-gradient(135deg, #0f766e, #115e59)',
+        fontFamily: 'Arial'
       }}
     >
       <div
         style={{
           background: 'white',
           padding: '40px',
-          borderRadius: '20px',
-          width: '350px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '15px'
+          borderRadius: '25px',
+          width: '380px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
         }}
       >
-        <h2>Espaço Montessoriano</h2>
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <h1
+            style={{
+              color: '#0f766e',
+              marginBottom: '10px'
+            }}
+          >
+            Espaço Montessoriano
+          </h1>
 
-        <input
-          type="email"
-          placeholder="E-mail"
-          style={{
-            padding: '12px',
-            borderRadius: '10px',
-            border: '1px solid #ccc'
-          }}
-        />
+          <p
+            style={{
+              color: '#666',
+              fontSize: '14px'
+            }}
+          >
+            Sistema Clínico Integrado
+          </p>
+        </div>
 
-        <input
-          type={mostrarSenha ? 'text' : 'password'}
-          placeholder="Senha"
+        <div
           style={{
-            padding: '12px',
-            borderRadius: '10px',
-            border: '1px solid #ccc'
-          }}
-        />
-
-        <button
-          onClick={() => setMostrarSenha(!mostrarSenha)}
-          style={{
-            padding: '10px',
-            borderRadius: '10px',
-            border: 'none',
-            background: '#ddd'
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '15px'
           }}
         >
-          {mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-        </button>
+          <input
+            type="email"
+            placeholder="E-mail"
+            style={{
+              padding: '14px',
+              borderRadius: '12px',
+              border: '1px solid #ccc',
+              fontSize: '15px'
+            }}
+          />
 
-        <button
+          <div style={{ position: 'relative' }}>
+            <input
+              type={mostrarSenha ? 'text' : 'password'}
+              placeholder="Senha"
+              style={{
+                padding: '14px',
+                borderRadius: '12px',
+                border: '1px solid #ccc',
+                width: '100%',
+                fontSize: '15px'
+              }}
+            />
+
+            <button
+              onClick={() => setMostrarSenha(!mostrarSenha)}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                top: '10px',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: '#0f766e'
+              }}
+            >
+              {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
+
+          <button
+            style={{
+              padding: '14px',
+              borderRadius: '12px',
+              border: 'none',
+              background: '#0f766e',
+              color: 'white',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '15px'
+            }}
+          >
+            Entrar
+          </button>
+        </div>
+
+        <div
           style={{
-            padding: '14px',
-            borderRadius: '10px',
-            border: 'none',
-            background: '#0f7f68',
-            color: 'white',
-            fontWeight: 'bold'
+            marginTop: '25px',
+            textAlign: 'center',
+            fontSize: '13px',
+            color: '#777'
           }}
         >
-          Entrar
-        </button>
+          © Espaço Montessoriano
+        </div>
       </div>
     </div>
   )
