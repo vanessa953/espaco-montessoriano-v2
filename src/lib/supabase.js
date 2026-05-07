@@ -1,6 +1,2 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = 'https://SEU-PROJETO.supabase.co'
-const supabaseKey = 'SUA-CHAVE-PUBLICA'
-
-export const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = 'https://wvbszmjqpfgrhjqpuccu.supabase.co'
+const supabaseKey = 'COLE_AQUI_SUA_PUBLISHABLE_KEY'
