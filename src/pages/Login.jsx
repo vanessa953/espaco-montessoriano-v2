@@ -1,7 +1,31 @@
 import { useState } from 'react'
+import { supabase } from '../biblioteca/supabase'
 
 export default function Login() {
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [carregando, setCarregando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function fazerLogin() {
+    setErro('')
+    setCarregando(true)
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: senha
+    })
+
+    setCarregando(false)
+
+    if (error) {
+      setErro('E-mail ou senha inválidos')
+      return
+    }
+
+    alert('Login realizado com sucesso!')
+  }
 
   return (
     <div
@@ -53,6 +77,8 @@ export default function Login() {
           <input
             type="email"
             placeholder="E-mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             style={{
               padding: '14px',
               borderRadius: '12px',
@@ -65,6 +91,8 @@ export default function Login() {
             <input
               type={mostrarSenha ? 'text' : 'password'}
               placeholder="Senha"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
               style={{
                 padding: '14px',
                 borderRadius: '12px',
@@ -90,7 +118,23 @@ export default function Login() {
             </button>
           </div>
 
+          {erro && (
+            <div
+              style={{
+                background: '#fee2e2',
+                color: '#b91c1c',
+                padding: '10px',
+                borderRadius: '10px',
+                fontSize: '14px'
+              }}
+            >
+              {erro}
+            </div>
+          )}
+
           <button
+            onClick={fazerLogin}
+            disabled={carregando}
             style={{
               padding: '14px',
               borderRadius: '12px',
@@ -102,7 +146,7 @@ export default function Login() {
               fontSize: '15px'
             }}
           >
-            Entrar
+            {carregando ? 'Entrando...' : 'Entrar'}
           </button>
         </div>
 
