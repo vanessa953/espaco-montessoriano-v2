@@ -1,0 +1,13 @@
+import Layout from '../components/Layout'
+
+export default function Configuracoes() {
+  return (
+    <Layout title="Configurações" subtitle="Base técnica do sistema">
+      <div className="panel">
+        <h2>Supabase</h2>
+        <p>O app está preparado para autenticação segura via Supabase.</p>
+        <p className="empty">Próxima etapa: criar tabelas reais e conectar cada módulo ao banco.</p>
+      </div>
+    </Layout>
+  )
+}
