@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const navigate = useNavigate()
+  const [email, setEmail] = useState('vanessa@espacomontessoriano.com')
   const [senha, setSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [carregando, setCarregando] = useState(false)
@@ -24,139 +26,45 @@ export default function Login() {
       return
     }
 
-window.location.href = '/dashboard'
+    localStorage.setItem('em_session', 'ativo')
+    navigate('/dashboard')
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'linear-gradient(135deg, #0f766e, #115e59)',
-        fontFamily: 'Arial'
-      }}
-    >
-      <div
-        style={{
-          background: 'white',
-          padding: '40px',
-          borderRadius: '25px',
-          width: '380px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1
-            style={{
-              color: '#0f766e',
-              marginBottom: '10px'
-            }}
-          >
-            Espaço Montessoriano
-          </h1>
-
-          <p
-            style={{
-              color: '#666',
-              fontSize: '14px'
-            }}
-          >
-            Sistema Clínico Integrado
-          </p>
+    <div className="loginPage">
+      <div className="loginCard">
+        <div className="loginHero">
+          <h1>Espaço Montessoriano</h1>
+          <p>Centro Integrado de Neurodesenvolvimento, Aprendizagem e Inclusão.</p>
+          <small>App clínico profissional com Supabase</small>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '15px'
-          }}
-        >
-          <input
-            type="email"
-            placeholder="E-mail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{
-              padding: '14px',
-              borderRadius: '12px',
-              border: '1px solid #ccc',
-              fontSize: '15px'
-            }}
-          />
+        <div className="loginForm">
+          <h2>Acesso ao sistema</h2>
+          <p>Entre com seu e-mail e senha cadastrados.</p>
 
-          <div style={{ position: 'relative' }}>
-            <input
-              type={mostrarSenha ? 'text' : 'password'}
-              placeholder="Senha"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              style={{
-                padding: '14px',
-                borderRadius: '12px',
-                border: '1px solid #ccc',
-                width: '100%',
-                fontSize: '15px'
-              }}
-            />
+          <label>E-mail</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} />
 
-            <button
-              onClick={() => setMostrarSenha(!mostrarSenha)}
-              style={{
-                position: 'absolute',
-                right: '10px',
-                top: '10px',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                color: '#0f766e'
-              }}
-            >
+          <label>Senha</label>
+          <div className="passwordBox">
+            <input type={mostrarSenha ? 'text' : 'password'} value={senha} onChange={(e) => setSenha(e.target.value)} />
+            <button type="button" onClick={() => setMostrarSenha(!mostrarSenha)}>
               {mostrarSenha ? 'Ocultar' : 'Mostrar'}
             </button>
           </div>
 
-          {erro && (
-            <div
-              style={{
-                background: '#fee2e2',
-                color: '#b91c1c',
-                padding: '10px',
-                borderRadius: '10px',
-                fontSize: '14px'
-              }}
-            >
-              {erro}
-            </div>
-          )}
+          {erro && <div className="error">{erro}</div>}
 
-          <button
-            onClick={fazerLogin}
-            disabled={carregando}
-            style={{
-              padding: '14px',
-              borderRadius: '12px',
-              border: 'none',
-              background: '#0f766e',
-              color: 'white',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '15px'
-            }}
-          >
+          <button className="primary" onClick={fazerLogin} disabled={carregando}>
             {carregando ? 'Entrando...' : 'Entrar'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
 
-        <div
-          style={{
-            marginTop: '25px',
-            textAlign: 'center',
-            fontSize: '13px',
-            color: '#777'
-          }}
         >
           © Espaço Montessoriano
         </div>
