@@ -1,4 +1,4 @@
-export default function pacientes() {
+export default function Pacientes() {
   return (
     <div style={{ padding: 30 }}>
       <h1>Pacientes</h1>
