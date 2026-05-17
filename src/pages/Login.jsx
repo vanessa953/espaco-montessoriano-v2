@@ -9,7 +9,8 @@ export default function Login() {
     useState('familia')
 
   const [login, setLogin] = useState('')
-  const [senha, setSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] =
+  useState(false)
 
   const [carregando, setCarregando] =
     useState(false)
@@ -145,15 +146,35 @@ export default function Login() {
             style={input}
           />
 
-          <input
-            type="password"
-            placeholder="Senha"
-            value={senha}
-            onChange={(e) =>
-              setSenha(e.target.value)
-            }
-            style={input}
-          />
+          <div style={senhaBox}>
+  <input
+    type={
+      mostrarSenha
+        ? 'text'
+        : 'password'
+    }
+    placeholder="Senha"
+    value={senha}
+    onChange={(e) =>
+      setSenha(e.target.value)
+    }
+    style={inputSenha}
+  />
+
+  <button
+    type="button"
+    onClick={() =>
+      setMostrarSenha(
+        !mostrarSenha
+      )
+    }
+    style={botaoSenha}
+  >
+    {mostrarSenha
+      ? 'Ocultar'
+      : 'Mostrar'}
+  </button>
+</div>
 
           <button
             onClick={entrar}
@@ -249,7 +270,28 @@ const input = {
   fontSize: 15
 }
 
-const botao = {
+const senhaBox = {
+  display: 'flex',
+  gap: 10,
+  alignItems: 'center'
+}
+
+const inputSenha = {
+  flex: 1,
+  padding: 15,
+  borderRadius: 12,
+  border: '1px solid #ccc',
+  fontSize: 15
+}
+
+const botaoSenha = {
+  background: '#e2e8f0',
+  border: 'none',
+  padding: '14px 16px',
+  borderRadius: 12,
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
   background: '#0f766e',
   color: '#fff',
   border: 'none',
