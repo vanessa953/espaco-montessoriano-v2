@@ -64,11 +64,3 @@ export default function Login() {
     </div>
   )
 }
-
-        >
-          © Espaço Montessoriano
-        </div>
-      </div>
-    </div>
-  )
-}
