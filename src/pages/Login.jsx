@@ -5,15 +5,11 @@ import { supabase } from '../lib/supabase'
 export default function Login() {
   const navigate = useNavigate()
 
-  const [tipoAcesso, setTipoAcesso] =
-    useState('familia')
-
+  const [tipoAcesso, setTipoAcesso] = useState('familia')
   const [login, setLogin] = useState('')
-  const [mostrarSenha, setMostrarSenha] =
-  useState(false)
-
-  const [carregando, setCarregando] =
-    useState(false)
+  const [senha, setSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [carregando, setCarregando] = useState(false)
 
   async function entrar() {
     if (!login || !senha) {
@@ -25,13 +21,12 @@ export default function Login() {
 
     try {
       if (tipoAcesso === 'profissional') {
-        const { data, error } =
-          await supabase
-            .from('profissionais')
-            .select('*')
-            .eq('login_app', login)
-            .eq('senha_app', senha)
-            .maybeSingle()
+        const { data, error } = await supabase
+          .from('profissionais')
+          .select('*')
+          .eq('login_app', login)
+          .eq('senha_app', senha)
+          .maybeSingle()
 
         if (error || !data) {
           alert('Login inválido')
@@ -39,28 +34,20 @@ export default function Login() {
           return
         }
 
-        localStorage.setItem(
-          'usuario',
-          JSON.stringify(data)
-        )
-
-        localStorage.setItem(
-          'tipo_usuario',
-          'profissional'
-        )
+        localStorage.setItem('em_session', 'ativo')
+        localStorage.setItem('usuario', JSON.stringify(data))
+        localStorage.setItem('tipo_usuario', 'profissional')
 
         navigate('/dashboard')
-
         return
       }
 
-      const { data, error } =
-        await supabase
-          .from('pacientes')
-          .select('*')
-          .eq('login_familia', login)
-          .eq('senha_familia', senha)
-          .single()
+      const { data, error } = await supabase
+        .from('pacientes')
+        .select('*')
+        .eq('login_familia', login)
+        .eq('senha_familia', senha)
+        .maybeSingle()
 
       if (error || !data) {
         alert('Login inválido')
@@ -68,15 +55,9 @@ export default function Login() {
         return
       }
 
-      localStorage.setItem(
-        'usuario',
-        JSON.stringify(data)
-      )
-
-      localStorage.setItem(
-        'tipo_usuario',
-        'familia'
-      )
+      localStorage.setItem('em_session', 'ativo')
+      localStorage.setItem('usuario', JSON.stringify(data))
+      localStorage.setItem('tipo_usuario', 'familia')
 
       navigate('/familia')
     } catch (err) {
@@ -90,9 +71,7 @@ export default function Login() {
   return (
     <div style={pagina}>
       <div style={card}>
-        <h1 style={titulo}>
-          Espaço Montessoriano
-        </h1>
+        <h1 style={titulo}>Espaço Montessoriano</h1>
 
         <p style={subtitulo}>
           Plataforma clínica integrada
@@ -100,38 +79,22 @@ export default function Login() {
 
         <div style={tabs}>
           <button
-            onClick={() =>
-              setTipoAcesso('familia')
-            }
-            style={
-              tipoAcesso === 'familia'
-                ? tabAtiva
-                : tab
-            }
+            onClick={() => setTipoAcesso('familia')}
+            style={tipoAcesso === 'familia' ? tabAtiva : tab}
           >
             Área da Família
           </button>
 
           <button
-            onClick={() =>
-              setTipoAcesso(
-                'profissional'
-              )
-            }
-            style={
-              tipoAcesso ===
-              'profissional'
-                ? tabAtiva
-                : tab
-            }
+            onClick={() => setTipoAcesso('profissional')}
+            style={tipoAcesso === 'profissional' ? tabAtiva : tab}
           >
             Área Profissional
           </button>
         </div>
 
         <div style={boxInfo}>
-          {tipoAcesso ===
-          'profissional'
+          {tipoAcesso === 'profissional'
             ? 'Acesso exclusivo para equipe clínica e administrativa.'
             : 'Acompanhe agenda, resumos e evolução terapêutica.'}
         </div>
@@ -140,49 +103,30 @@ export default function Login() {
           <input
             placeholder="Login"
             value={login}
-            onChange={(e) =>
-              setLogin(e.target.value)
-            }
+            onChange={(e) => setLogin(e.target.value)}
             style={input}
           />
 
           <div style={senhaBox}>
-  <input
-    type={
-      mostrarSenha
-        ? 'text'
-        : 'password'
-    }
-    placeholder="Senha"
-    value={senha}
-    onChange={(e) =>
-      setSenha(e.target.value)
-    }
-    style={inputSenha}
-  />
+            <input
+              type={mostrarSenha ? 'text' : 'password'}
+              placeholder="Senha"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              style={inputSenha}
+            />
 
-  <button
-    type="button"
-    onClick={() =>
-      setMostrarSenha(
-        !mostrarSenha
-      )
-    }
-    style={botaoSenha}
-  >
-    {mostrarSenha
-      ? 'Ocultar'
-      : 'Mostrar'}
-  </button>
-</div>
+            <button
+              type="button"
+              onClick={() => setMostrarSenha(!mostrarSenha)}
+              style={botaoSenha}
+            >
+              {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
 
-          <button
-            onClick={entrar}
-            style={botao}
-          >
-            {carregando
-              ? 'Entrando...'
-              : 'Entrar'}
+          <button onClick={entrar} style={botao}>
+            {carregando ? 'Entrando...' : 'Entrar'}
           </button>
         </div>
       </div>
@@ -192,8 +136,7 @@ export default function Login() {
 
 const pagina = {
   minHeight: '100vh',
-  background:
-    'linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%)',
+  background: 'linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -207,8 +150,7 @@ const card = {
   background: '#fff',
   borderRadius: 24,
   padding: 40,
-  boxShadow:
-    '0 10px 30px rgba(0,0,0,0.08)'
+  boxShadow: '0 10px 30px rgba(0,0,0,0.08)'
 }
 
 const titulo = {
@@ -287,11 +229,13 @@ const inputSenha = {
 const botaoSenha = {
   background: '#e2e8f0',
   border: 'none',
-  padding: '14px 16px',
+  padding: '15px 16px',
   borderRadius: 12,
   cursor: 'pointer',
   fontWeight: 'bold'
 }
+
+const botao = {
   background: '#0f766e',
   color: '#fff',
   border: 'none',
