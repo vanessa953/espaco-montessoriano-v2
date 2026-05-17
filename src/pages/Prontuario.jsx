@@ -30,7 +30,7 @@ export default function Prontuario() {
     plano_trimestral: '',
     plano_semestral: '',
     plano_anual: '',
-    liberar_familia: false,
+    liberar_familia: true,
     permitir_ia: false
   })
 
@@ -115,58 +115,13 @@ export default function Prontuario() {
   }
 
   async function salvarProntuario() {
-  if (!form.paciente_id) {
-    alert('Selecione o paciente')
-    return
-  }
-
-  if (!form.resumo_familia?.trim()) {
-    alert(
-      'O resumo para família é obrigatório.'
-    )
-    return
-  }
-
-  const profissionalSelecionado = profissionais.find(
-    (p) => p.id === form.profissional_id
-  )
-
-  const dados = {
-    ...form,
-    profissional_nome:
-      profissionalSelecionado?.nome ||
-      form.profissional_nome ||
-      '',
-    data_sessao: form.data_sessao || null
-  }
-
-  const { data, error } = await supabase
-    .from('prontuarios')
-    .insert([dados])
-    .select()
-
-  if (error) {
-    console.log(error)
-    alert('Erro ao salvar prontuário')
-    return
-  }
-
-  const prontuarioCriado = data?.[0]
-
-  if (prontuarioCriado) {
-    await enviarAnexos(
-      prontuarioCriado.id,
-      form.paciente_id
-    )
-  }
-
-  alert('Registro salvo com sucesso')
-
-  limparFormulario()
-  carregarDados()
-}
     if (!form.paciente_id) {
       alert('Selecione o paciente')
+      return
+    }
+
+    if (!form.resumo_familia?.trim()) {
+      alert('O resumo para família é obrigatório.')
       return
     }
 
@@ -177,8 +132,11 @@ export default function Prontuario() {
     const dados = {
       ...form,
       profissional_nome:
-        profissionalSelecionado?.nome || form.profissional_nome || '',
-      data_sessao: form.data_sessao || null
+        profissionalSelecionado?.nome ||
+        form.profissional_nome ||
+        '',
+      data_sessao: form.data_sessao || null,
+      liberar_familia: true
     }
 
     const { data, error } = await supabase
@@ -206,6 +164,7 @@ export default function Prontuario() {
 
   function limparFormulario() {
     setArquivos([])
+
     setForm({
       paciente_id: '',
       profissional_id: '',
@@ -227,7 +186,7 @@ export default function Prontuario() {
       plano_trimestral: '',
       plano_semestral: '',
       plano_anual: '',
-      liberar_familia: false,
+      liberar_familia: true,
       permitir_ia: false
     })
   }
@@ -271,7 +230,7 @@ Sugestões de acompanhamento:
       <h1>Prontuário Clínico Integrado</h1>
 
       <p style={{ color: '#666', marginBottom: 30 }}>
-        Evolução, anamnese, reuniões, anexos, relatórios, planos de intervenção e apoio de IA.
+        Evolução, anamnese, reuniões, anexos, relatórios, planos de intervenção e resumo obrigatório para o App Família.
       </p>
 
       <div style={abas}>
@@ -334,10 +293,40 @@ Sugestões de acompanhamento:
 
         {aba === 'sessao' && (
           <div style={gridTextos}>
-            <textarea placeholder="Evolução clínica da sessão" value={form.evolucao} onChange={(e) => atualizarCampo('evolucao', e.target.value)} />
-            <textarea placeholder="Conduta / intervenção realizada" value={form.conduta} onChange={(e) => atualizarCampo('conduta', e.target.value)} />
-            <textarea placeholder="Resumo para família" value={form.resumo_familia} onChange={(e) => atualizarCampo('resumo_familia', e.target.value)} />
-            <textarea placeholder="Observações internas protegidas" value={form.observacoes_internas} onChange={(e) => atualizarCampo('observacoes_internas', e.target.value)} />
+            <textarea
+              placeholder="Evolução clínica da sessão"
+              value={form.evolucao}
+              onChange={(e) => atualizarCampo('evolucao', e.target.value)}
+            />
+
+            <textarea
+              placeholder="Conduta / intervenção realizada"
+              value={form.conduta}
+              onChange={(e) => atualizarCampo('conduta', e.target.value)}
+            />
+
+            <div>
+              <label style={labelResumo}>
+                Resumo para família *
+              </label>
+
+              <textarea
+                placeholder="Descreva de forma clara, acolhedora e objetiva como foi a sessão, avanços observados, dificuldades percebidas e orientações importantes para a família."
+                value={form.resumo_familia}
+                onChange={(e) => atualizarCampo('resumo_familia', e.target.value)}
+                style={textareaResumo}
+              />
+
+              <p style={avisoFamilia}>
+                Este conteúdo ficará disponível automaticamente no App Família.
+              </p>
+            </div>
+
+            <textarea
+              placeholder="Observações internas protegidas"
+              value={form.observacoes_internas}
+              onChange={(e) => atualizarCampo('observacoes_internas', e.target.value)}
+            />
           </div>
         )}
 
@@ -393,6 +382,7 @@ Sugestões de acompanhamento:
         {aba === 'anexos' && (
           <div style={{ marginTop: 20 }}>
             <input type="file" multiple onChange={selecionarArquivos} />
+
             <p style={{ color: '#666' }}>
               Anexe laudos, relatórios, avaliações, documentos escolares, imagens ou PDFs.
             </p>
@@ -426,6 +416,7 @@ Sugestões de acompanhamento:
 
       <div style={box}>
         <h2>Buscar registros</h2>
+
         <input
           placeholder="Buscar por paciente, serviço ou tipo de registro"
           value={busca}
@@ -503,6 +494,27 @@ const gridTextos = {
   gridTemplateColumns: '1fr 1fr',
   gap: 15,
   marginTop: 20
+}
+
+const labelResumo = {
+  display: 'block',
+  marginBottom: 8,
+  fontWeight: 'bold',
+  color: '#0f766e'
+}
+
+const textareaResumo = {
+  width: '100%',
+  minHeight: 160,
+  padding: 14,
+  borderRadius: 10,
+  border: '2px solid #0f766e'
+}
+
+const avisoFamilia = {
+  color: '#666',
+  fontSize: 13,
+  marginTop: 8
 }
 
 const textareaGrande = {
