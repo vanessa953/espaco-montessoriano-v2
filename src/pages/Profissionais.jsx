@@ -23,7 +23,13 @@ export default function Profissionais() {
     ativo: true,
     foto_url: '',
     login_app: '',
-    senha_app: ''
+    senha_app: '',
+
+    tipo_pagamento: 'Por hora',
+    valor_hora: 0,
+    valor_sessao: 0,
+    percentual_repasse: 0,
+    observacao_pagamento: ''
   })
 
   async function carregarProfissionais() {
@@ -102,7 +108,7 @@ export default function Profissionais() {
 
   async function salvarProfissional() {
     if (!form.nome) {
-      alert('Digite o nome do profissional')
+      alert('Digite o nome')
       return
     }
 
@@ -121,7 +127,13 @@ export default function Profissionais() {
     const dados = {
       ...form,
       ...acesso,
-      foto_url: fotoUrl
+      foto_url: fotoUrl,
+
+      valor_hora: Number(form.valor_hora || 0),
+      valor_sessao: Number(form.valor_sessao || 0),
+      percentual_repasse: Number(
+        form.percentual_repasse || 0
+      )
     }
 
     let profissionalId = editandoId
@@ -134,7 +146,7 @@ export default function Profissionais() {
 
       if (error) {
         console.log(error)
-        alert('Erro ao atualizar profissional')
+        alert('Erro ao atualizar')
         return
       }
     } else {
@@ -145,7 +157,7 @@ export default function Profissionais() {
 
       if (error) {
         console.log(error)
-        alert('Erro ao cadastrar profissional')
+        alert('Erro ao cadastrar')
         return
       }
 
@@ -159,8 +171,8 @@ export default function Profissionais() {
 
     alert(
       editandoId
-        ? 'Profissional atualizado com sucesso'
-        : 'Profissional cadastrado com sucesso'
+        ? 'Profissional atualizado'
+        : 'Profissional cadastrado'
     )
 
     limparFormulario()
@@ -206,8 +218,7 @@ export default function Profissionais() {
             tipo: arquivo.type,
             url,
             competencia: new Date().toISOString().slice(0, 7),
-            valor: 0,
-            observacoes: 'Nota fiscal anexada no cadastro do profissional'
+            valor: 0
           }])
       }
     }
@@ -217,19 +228,8 @@ export default function Profissionais() {
     setEditandoId(prof.id)
 
     setForm({
-      nome: prof.nome || '',
-      cpf: prof.cpf || '',
-      email: prof.email || '',
-      telefone: prof.telefone || '',
-      cargo: prof.cargo || '',
-      especialidade: prof.especialidade || '',
-      conselho: prof.conselho || '',
-      nivel_acesso: prof.nivel_acesso || 'Terapeuta',
-      observacoes: prof.observacoes || '',
-      ativo: prof.ativo ?? true,
-      foto_url: prof.foto_url || '',
-      login_app: prof.login_app || '',
-      senha_app: prof.senha_app || ''
+      ...form,
+      ...prof
     })
 
     window.scrollTo({
@@ -240,21 +240,15 @@ export default function Profissionais() {
 
   async function excluirProfissional(id) {
     const confirmar = confirm(
-      'Deseja realmente excluir este profissional?'
+      'Deseja excluir este profissional?'
     )
 
     if (!confirmar) return
 
-    const { error } = await supabase
+    await supabase
       .from('profissionais')
       .delete()
       .eq('id', id)
-
-    if (error) {
-      console.log(error)
-      alert('Erro ao excluir profissional')
-      return
-    }
 
     carregarProfissionais()
   }
@@ -278,29 +272,25 @@ export default function Profissionais() {
       ativo: true,
       foto_url: '',
       login_app: '',
-      senha_app: ''
+      senha_app: '',
+
+      tipo_pagamento: 'Por hora',
+      valor_hora: 0,
+      valor_sessao: 0,
+      percentual_repasse: 0,
+      observacao_pagamento: ''
     })
   }
 
   function copiarAcesso(prof) {
-    const texto = `Acesso ao App Espaço Montessoriano
+    const texto = `Acesso App Espaço Montessoriano
 
 Login: ${prof.login_app}
-Senha: ${prof.senha_app}
-
-Link: https://app.espacomontessoriano.com`
+Senha: ${prof.senha_app}`
 
     navigator.clipboard.writeText(texto)
+
     alert('Acesso copiado')
-  }
-
-  function gerarAcessoManual() {
-    const acesso = gerarAcessoProfissional(form)
-
-    setForm((prev) => ({
-      ...prev,
-      ...acesso
-    }))
   }
 
   const profissionaisFiltrados = useMemo(() => {
@@ -309,10 +299,8 @@ Link: https://app.espacomontessoriano.com`
     return profissionais.filter((p) => {
       return (
         p.nome?.toLowerCase().includes(texto) ||
-        p.email?.toLowerCase().includes(texto) ||
         p.cargo?.toLowerCase().includes(texto) ||
-        p.especialidade?.toLowerCase().includes(texto) ||
-        p.nivel_acesso?.toLowerCase().includes(texto)
+        p.especialidade?.toLowerCase().includes(texto)
       )
     })
   }, [profissionais, busca])
@@ -321,10 +309,6 @@ Link: https://app.espacomontessoriano.com`
     <div style={pagina}>
       <h1>Profissionais</h1>
 
-      <p style={{ color: '#666', marginBottom: 30 }}>
-        Cadastro da equipe, documentos, notas fiscais, login automático, permissões e vínculos futuros com pacientes e financeiro.
-      </p>
-
       <div style={box}>
         <h2>
           {editandoId
@@ -332,35 +316,9 @@ Link: https://app.espacomontessoriano.com`
             : 'Cadastrar profissional'}
         </h2>
 
-        <div style={{ display: 'flex', gap: 25, marginBottom: 25, flexWrap: 'wrap' }}>
-          <div style={fotoBox}>
-            {form.foto_url ? (
-              <img
-                src={form.foto_url}
-                alt={form.nome}
-                style={fotoImg}
-              />
-            ) : (
-              <span>Sem foto</span>
-            )}
-          </div>
-
-          <div>
-            <label>Foto do profissional</label>
-            <br />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) =>
-                setFotoArquivo(e.target.files[0])
-              }
-            />
-          </div>
-        </div>
-
         <div style={grid}>
           <input
-            placeholder="Nome completo"
+            placeholder="Nome"
             value={form.nome}
             onChange={(e) =>
               atualizarCampo('nome', e.target.value)
@@ -376,7 +334,7 @@ Link: https://app.espacomontessoriano.com`
           />
 
           <input
-            placeholder="E-mail / login"
+            placeholder="E-mail"
             value={form.email}
             onChange={(e) =>
               atualizarCampo('email', e.target.value)
@@ -384,15 +342,18 @@ Link: https://app.espacomontessoriano.com`
           />
 
           <input
-            placeholder="Telefone / WhatsApp"
+            placeholder="Telefone"
             value={form.telefone}
             onChange={(e) =>
-              atualizarCampo('telefone', e.target.value)
+              atualizarCampo(
+                'telefone',
+                e.target.value
+              )
             }
           />
 
           <input
-            placeholder="Cargo / função"
+            placeholder="Cargo"
             value={form.cargo}
             onChange={(e) =>
               atualizarCampo('cargo', e.target.value)
@@ -403,22 +364,31 @@ Link: https://app.espacomontessoriano.com`
             placeholder="Especialidade"
             value={form.especialidade}
             onChange={(e) =>
-              atualizarCampo('especialidade', e.target.value)
+              atualizarCampo(
+                'especialidade',
+                e.target.value
+              )
             }
           />
 
           <input
-            placeholder="Conselho profissional"
+            placeholder="Conselho"
             value={form.conselho}
             onChange={(e) =>
-              atualizarCampo('conselho', e.target.value)
+              atualizarCampo(
+                'conselho',
+                e.target.value
+              )
             }
           />
 
           <select
             value={form.nivel_acesso}
             onChange={(e) =>
-              atualizarCampo('nivel_acesso', e.target.value)
+              atualizarCampo(
+                'nivel_acesso',
+                e.target.value
+              )
             }
           >
             <option>Administradora</option>
@@ -427,67 +397,113 @@ Link: https://app.espacomontessoriano.com`
             <option>Financeiro</option>
             <option>Supervisor</option>
             <option>Terapeuta</option>
-            <option>Família</option>
           </select>
 
           <select
-            value={form.ativo ? 'Ativo' : 'Inativo'}
+            value={form.tipo_pagamento}
             onChange={(e) =>
               atualizarCampo(
-                'ativo',
-                e.target.value === 'Ativo'
+                'tipo_pagamento',
+                e.target.value
               )
             }
           >
-            <option>Ativo</option>
-            <option>Inativo</option>
+            <option>Por hora</option>
+            <option>Por sessão</option>
+            <option>Percentual</option>
           </select>
 
-          <div />
+          <input
+            type="number"
+            placeholder="Valor hora"
+            value={form.valor_hora}
+            onChange={(e) =>
+              atualizarCampo(
+                'valor_hora',
+                e.target.value
+              )
+            }
+          />
 
-          <div style={acessoBox}>
-            <h3>Acesso automático ao App</h3>
+          <input
+            type="number"
+            placeholder="Valor sessão"
+            value={form.valor_sessao}
+            onChange={(e) =>
+              atualizarCampo(
+                'valor_sessao',
+                e.target.value
+              )
+            }
+          />
 
-            <input
-              placeholder="Login do app"
-              value={form.login_app}
-              onChange={(e) =>
-                atualizarCampo('login_app', e.target.value)
-              }
-              style={{ marginBottom: 10 }}
-            />
-
-            <input
-              placeholder="Senha do app"
-              value={form.senha_app}
-              onChange={(e) =>
-                atualizarCampo('senha_app', e.target.value)
-              }
-              style={{ marginBottom: 10 }}
-            />
-
-            <button
-              type="button"
-              onClick={gerarAcessoManual}
-              style={botaoCopiar}
-            >
-              Gerar login e senha
-            </button>
-          </div>
+          <input
+            type="number"
+            placeholder="% repasse"
+            value={form.percentual_repasse}
+            onChange={(e) =>
+              atualizarCampo(
+                'percentual_repasse',
+                e.target.value
+              )
+            }
+          />
 
           <textarea
-            placeholder="Observações sobre o profissional"
-            value={form.observacoes}
+            placeholder="Observações pagamento"
+            value={form.observacao_pagamento}
             onChange={(e) =>
-              atualizarCampo('observacoes', e.target.value)
+              atualizarCampo(
+                'observacao_pagamento',
+                e.target.value
+              )
             }
             style={{
-              minHeight: 140
+              minHeight: 100
             }}
           />
 
+          <div style={acessoBox}>
+            <h3>Acesso app</h3>
+
+            <input
+              placeholder="Login"
+              value={form.login_app}
+              onChange={(e) =>
+                atualizarCampo(
+                  'login_app',
+                  e.target.value
+                )
+              }
+            />
+
+            <input
+              placeholder="Senha"
+              value={form.senha_app}
+              onChange={(e) =>
+                atualizarCampo(
+                  'senha_app',
+                  e.target.value
+                )
+              }
+            />
+          </div>
+
           <div>
-            <label>Documentos do profissional</label>
+            <label>Foto</label>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) =>
+                setFotoArquivo(e.target.files[0])
+              }
+            />
+          </div>
+
+          <div>
+            <label>Documentos</label>
+
             <input
               type="file"
               multiple
@@ -501,6 +517,7 @@ Link: https://app.espacomontessoriano.com`
 
           <div>
             <label>Notas fiscais</label>
+
             <input
               type="file"
               multiple
@@ -517,8 +534,8 @@ Link: https://app.espacomontessoriano.com`
             style={botaoPrincipal}
           >
             {editandoId
-              ? 'Atualizar profissional'
-              : 'Cadastrar profissional'}
+              ? 'Atualizar'
+              : 'Cadastrar'}
           </button>
 
           <button
@@ -531,68 +548,82 @@ Link: https://app.espacomontessoriano.com`
       </div>
 
       <div style={box}>
-        <h2>Buscar profissional</h2>
-
         <input
-          placeholder="Buscar por nome, e-mail, cargo, especialidade ou nível de acesso"
+          placeholder="Buscar profissional"
           value={busca}
-          onChange={(e) => setBusca(e.target.value)}
+          onChange={(e) =>
+            setBusca(e.target.value)
+          }
           style={inputBusca}
         />
       </div>
 
-      <h2>Profissionais cadastrados</h2>
-
       <div style={{ display: 'grid', gap: 15 }}>
         {profissionaisFiltrados.map((p) => (
           <div key={p.id} style={card}>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              <div style={miniFotoBox}>
-                {p.foto_url ? (
-                  <img
-                    src={p.foto_url}
-                    alt={p.nome}
-                    style={miniFotoImg}
-                  />
-                ) : (
-                  <span>Sem foto</span>
-                )}
-              </div>
+            <h3>{p.nome}</h3>
 
-              <div style={{ flex: 1 }}>
-                <h3>{p.nome}</h3>
-                <p><strong>Cargo:</strong> {p.cargo}</p>
-                <p><strong>Especialidade:</strong> {p.especialidade}</p>
-                <p><strong>E-mail:</strong> {p.email}</p>
-                <p><strong>Telefone:</strong> {p.telefone}</p>
-                <p><strong>Nível:</strong> {p.nivel_acesso}</p>
-                <p><strong>Status:</strong> {p.ativo ? 'Ativo' : 'Inativo'}</p>
-                <p><strong>Login App:</strong> {p.login_app}</p>
-                <p><strong>Senha App:</strong> {p.senha_app}</p>
-              </div>
+            <p>
+              <strong>Cargo:</strong> {p.cargo}
+            </p>
 
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => copiarAcesso(p)}
-                  style={botaoCopiar}
-                >
-                  Copiar acesso
-                </button>
+            <p>
+              <strong>Especialidade:</strong>{' '}
+              {p.especialidade}
+            </p>
 
-                <button
-                  onClick={() => editarProfissional(p)}
-                  style={botaoEditar}
-                >
-                  Editar
-                </button>
+            <p>
+              <strong>Tipo pagamento:</strong>{' '}
+              {p.tipo_pagamento}
+            </p>
 
-                <button
-                  onClick={() => excluirProfissional(p.id)}
-                  style={botaoExcluir}
-                >
-                  Excluir
-                </button>
-              </div>
+            <p>
+              <strong>Valor hora:</strong>{' '}
+              R$ {p.valor_hora}
+            </p>
+
+            <p>
+              <strong>Valor sessão:</strong>{' '}
+              R$ {p.valor_sessao}
+            </p>
+
+            <p>
+              <strong>% repasse:</strong>{' '}
+              {p.percentual_repasse}%
+            </p>
+
+            <p>
+              <strong>Login:</strong>{' '}
+              {p.login_app}
+            </p>
+
+            <div style={acoes}>
+              <button
+                onClick={() =>
+                  copiarAcesso(p)
+                }
+                style={botaoAzul}
+              >
+                Copiar acesso
+              </button>
+
+              <button
+                onClick={() =>
+                  editarProfissional(p)
+                }
+                style={botaoEditar}
+              >
+                Editar
+              </button>
+
+              <button
+                onClick={() =>
+                  excluirProfissional(p.id)
+                }
+                style={botaoExcluir}
+              >
+                Excluir
+              </button>
             </div>
           </div>
         ))}
@@ -603,61 +634,23 @@ Link: https://app.espacomontessoriano.com`
 
 const pagina = {
   padding: 30,
-  fontFamily: 'Arial',
   background: '#f5f7fb',
-  minHeight: '100vh'
+  minHeight: '100vh',
+  fontFamily: 'Arial'
 }
 
 const box = {
   background: '#fff',
   padding: 25,
   borderRadius: 16,
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 25
+  marginBottom: 25,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
 }
 
 const grid = {
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
   gap: 15
-}
-
-const fotoBox = {
-  width: 140,
-  height: 140,
-  borderRadius: 18,
-  background: '#f1f5f9',
-  border: '1px dashed #bbb',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  overflow: 'hidden',
-  color: '#777'
-}
-
-const fotoImg = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover'
-}
-
-const miniFotoBox = {
-  width: 95,
-  height: 95,
-  borderRadius: 16,
-  background: '#f1f5f9',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  overflow: 'hidden',
-  color: '#777',
-  fontSize: 12
-}
-
-const miniFotoImg = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover'
 }
 
 const acessoBox = {
@@ -669,9 +662,16 @@ const acessoBox = {
 
 const card = {
   background: '#fff',
-  borderRadius: 16,
   padding: 20,
+  borderRadius: 16,
   boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+}
+
+const acoes = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 15,
+  flexWrap: 'wrap'
 }
 
 const inputBusca = {
@@ -685,26 +685,25 @@ const botaoPrincipal = {
   background: '#0f766e',
   color: '#fff',
   border: 'none',
-  borderRadius: 10,
   padding: 14,
-  cursor: 'pointer',
-  fontWeight: 'bold'
+  borderRadius: 10,
+  cursor: 'pointer'
 }
 
 const botaoSecundario = {
   background: '#ddd',
   border: 'none',
-  borderRadius: 10,
   padding: 14,
+  borderRadius: 10,
   cursor: 'pointer'
 }
 
-const botaoCopiar = {
+const botaoAzul = {
   background: '#2563eb',
   color: '#fff',
   border: 'none',
-  borderRadius: 10,
   padding: 10,
+  borderRadius: 10,
   cursor: 'pointer'
 }
 
@@ -712,8 +711,8 @@ const botaoEditar = {
   background: '#f59e0b',
   color: '#fff',
   border: 'none',
-  borderRadius: 10,
   padding: 10,
+  borderRadius: 10,
   cursor: 'pointer'
 }
 
@@ -721,7 +720,7 @@ const botaoExcluir = {
   background: '#dc2626',
   color: '#fff',
   border: 'none',
-  borderRadius: 10,
   padding: 10,
+  borderRadius: 10,
   cursor: 'pointer'
 }
