@@ -115,6 +115,56 @@ export default function Prontuario() {
   }
 
   async function salvarProntuario() {
+  if (!form.paciente_id) {
+    alert('Selecione o paciente')
+    return
+  }
+
+  if (!form.resumo_familia?.trim()) {
+    alert(
+      'O resumo para família é obrigatório.'
+    )
+    return
+  }
+
+  const profissionalSelecionado = profissionais.find(
+    (p) => p.id === form.profissional_id
+  )
+
+  const dados = {
+    ...form,
+    profissional_nome:
+      profissionalSelecionado?.nome ||
+      form.profissional_nome ||
+      '',
+    data_sessao: form.data_sessao || null
+  }
+
+  const { data, error } = await supabase
+    .from('prontuarios')
+    .insert([dados])
+    .select()
+
+  if (error) {
+    console.log(error)
+    alert('Erro ao salvar prontuário')
+    return
+  }
+
+  const prontuarioCriado = data?.[0]
+
+  if (prontuarioCriado) {
+    await enviarAnexos(
+      prontuarioCriado.id,
+      form.paciente_id
+    )
+  }
+
+  alert('Registro salvo com sucesso')
+
+  limparFormulario()
+  carregarDados()
+}
     if (!form.paciente_id) {
       alert('Selecione o paciente')
       return
