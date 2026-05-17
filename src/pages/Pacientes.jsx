@@ -83,9 +83,10 @@ export default function Pacientes() {
     const acessos = gerarAcessoFamilia()
 
     const dados = {
-      ...form,
-      ...acessos
-    }
+  ...form,
+  ...acessos,
+  data_nascimento: form.data_nascimento || null
+}
 
     if (editandoId) {
       const { error } = await supabase
