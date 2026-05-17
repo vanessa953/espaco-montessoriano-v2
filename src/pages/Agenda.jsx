@@ -4,13 +4,15 @@ import { supabase } from '../lib/supabase'
 export default function Agenda() {
   const [agenda, setAgenda] = useState([])
   const [pacientes, setPacientes] = useState([])
+
   const [form, setForm] = useState({
     paciente_id: '',
     titulo: '',
     descricao: '',
     data: '',
     horario: '',
-    status: 'agendado'
+    status: 'agendado',
+    modalidade: 'Clínica'
   })
 
   async function carregarPacientes() {
@@ -33,7 +35,12 @@ export default function Agenda() {
       `)
       .order('data', { ascending: true })
 
-    if (!error) setAgenda(data || [])
+    if (error) {
+      console.log(error)
+      return
+    }
+
+    setAgenda(data || [])
   }
 
   async function cadastrarAtendimento() {
@@ -60,7 +67,8 @@ export default function Agenda() {
       descricao: '',
       data: '',
       horario: '',
-      status: 'agendado'
+      status: 'agendado',
+      modalidade: 'Clínica'
     })
 
     carregarAgenda()
@@ -79,57 +87,105 @@ export default function Agenda() {
   }
 
   return (
-    <div style={{ padding: 30, fontFamily: 'Arial', background: '#f5f7fb', minHeight: '100vh' }}>
-      <h1>Agenda</h1>
-      <p style={{ color: '#666' }}>Controle de atendimentos, sessões e horários.</p>
+    <div
+      style={{
+        padding: 30,
+        fontFamily: 'Arial',
+        background: '#f5f7fb',
+        minHeight: '100vh'
+      }}
+    >
+      <h1>Agenda Clínica</h1>
 
-      <div style={{
-        background: '#fff',
-        padding: 25,
-        borderRadius: 16,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 15,
-        marginTop: 30
-      }}>
-        <select value={form.paciente_id} onChange={(e) => atualizarCampo('paciente_id', e.target.value)}>
+      <p style={{ color: '#666', marginBottom: 30 }}>
+        Controle profissional de atendimentos e sessões.
+      </p>
+
+      <div
+        style={{
+          background: '#fff',
+          padding: 25,
+          borderRadius: 16,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 15
+        }}
+      >
+        <select
+          value={form.paciente_id}
+          onChange={(e) =>
+            atualizarCampo('paciente_id', e.target.value)
+          }
+        >
           <option value="">Selecione o paciente</option>
+
           {pacientes.map((p) => (
-            <option key={p.id} value={p.id}>{p.nome}</option>
+            <option key={p.id} value={p.id}>
+              {p.nome}
+            </option>
           ))}
         </select>
 
         <input
           placeholder="Título do atendimento"
           value={form.titulo}
-          onChange={(e) => atualizarCampo('titulo', e.target.value)}
+          onChange={(e) =>
+            atualizarCampo('titulo', e.target.value)
+          }
         />
 
         <input
           type="date"
           value={form.data}
-          onChange={(e) => atualizarCampo('data', e.target.value)}
+          onChange={(e) =>
+            atualizarCampo('data', e.target.value)
+          }
         />
 
         <input
           type="time"
           value={form.horario}
-          onChange={(e) => atualizarCampo('horario', e.target.value)}
+          onChange={(e) =>
+            atualizarCampo('horario', e.target.value)
+          }
         />
 
-        <select value={form.status} onChange={(e) => atualizarCampo('status', e.target.value)}>
+        <select
+          value={form.status}
+          onChange={(e) =>
+            atualizarCampo('status', e.target.value)
+          }
+        >
           <option value="agendado">Agendado</option>
           <option value="confirmado">Confirmado</option>
           <option value="realizado">Realizado</option>
           <option value="cancelado">Cancelado</option>
+          <option value="falta">Falta</option>
+          <option value="reposicao">Reposição</option>
+        </select>
+
+        <select
+          value={form.modalidade}
+          onChange={(e) =>
+            atualizarCampo('modalidade', e.target.value)
+          }
+        >
+          <option value="Clínica">Clínica</option>
+          <option value="Domiciliar">Domiciliar</option>
+          <option value="Vídeo">Vídeo</option>
         </select>
 
         <textarea
           placeholder="Descrição / observações"
           value={form.descricao}
-          onChange={(e) => atualizarCampo('descricao', e.target.value)}
-          style={{ gridColumn: '1 / span 2', minHeight: 90 }}
+          onChange={(e) =>
+            atualizarCampo('descricao', e.target.value)
+          }
+          style={{
+            gridColumn: '1 / span 2',
+            minHeight: 100
+          }}
         />
 
         <button
@@ -142,31 +198,63 @@ export default function Agenda() {
             borderRadius: 10,
             padding: 14,
             fontWeight: 'bold',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontSize: 15
           }}
         >
           Cadastrar Atendimento
         </button>
       </div>
 
-      <h2 style={{ marginTop: 40 }}>Atendimentos cadastrados</h2>
+      <h2 style={{ marginTop: 40 }}>
+        Atendimentos cadastrados
+      </h2>
 
-      <div style={{ display: 'grid', gap: 15, marginTop: 20 }}>
+      <div
+        style={{
+          display: 'grid',
+          gap: 15,
+          marginTop: 20
+        }}
+      >
         {agenda.map((item) => (
-          <div key={item.id} style={{
-            background: '#fff',
-            borderRadius: 16,
-            padding: 20,
-            boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
-          }}>
+          <div
+            key={item.id}
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 20,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+            }}
+          >
             <h3 style={{ margin: 0 }}>
-              {item.pacientes?.nome || 'Paciente não informado'}
+              {item.pacientes?.nome ||
+                'Paciente não informado'}
             </h3>
-            <p><strong>Data:</strong> {item.data}</p>
-            <p><strong>Horário:</strong> {item.horario}</p>
-            <p><strong>Título:</strong> {item.titulo}</p>
-            <p><strong>Status:</strong> {item.status}</p>
-            <p><strong>Observações:</strong> {item.descricao}</p>
+
+            <p>
+              <strong>Data:</strong> {item.data}
+            </p>
+
+            <p>
+              <strong>Horário:</strong> {item.horario}
+            </p>
+
+            <p>
+              <strong>Título:</strong> {item.titulo}
+            </p>
+
+            <p>
+              <strong>Status:</strong> {item.status}
+            </p>
+
+            <p>
+              <strong>Modalidade:</strong> {item.modalidade}
+            </p>
+
+            <p>
+              <strong>Observações:</strong> {item.descricao}
+            </p>
           </div>
         ))}
       </div>
