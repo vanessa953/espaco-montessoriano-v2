@@ -30,7 +30,7 @@ export default function Login() {
             .select('*')
             .eq('login_app', login)
             .eq('senha_app', senha)
-            .single()
+            .maybeSingle()
 
         if (error || !data) {
           alert('Login inválido')
