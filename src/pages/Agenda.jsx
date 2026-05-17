@@ -5,32 +5,19 @@ const horarios = []
 
 for (let h = 8; h <= 19; h++) {
   horarios.push(`${String(h).padStart(2, '0')}:00`)
+
   if (h !== 19) {
     horarios.push(`${String(h).padStart(2, '0')}:30`)
   }
 }
 
-const diasSemana = [
-  'Segunda',
-  'Terça',
-  'Quarta',
-  'Quinta',
-  'Sexta',
-  'Sábado'
-]
-
 export default function Agenda() {
   const [agenda, setAgenda] = useState([])
   const [pacientes, setPacientes] = useState([])
   const [profissionais, setProfissionais] = useState([])
-
-  const [filtroProfissional, setFiltroProfissional] = useState('')
-  const [filtroStatus, setFiltroStatus] = useState('')
-
   const [pacientesGrupo, setPacientesGrupo] = useState([])
 
   const [form, setForm] = useState({
-    titulo: '',
     paciente_id: '',
     profissional_id: '',
     servico: '',
@@ -39,13 +26,25 @@ export default function Agenda() {
     modalidade: 'Clínica',
     tipo_atendimento: 'Individual',
     status: 'Agendado',
+
     observacoes: '',
     repetir: false,
+
     link_videochamada: '',
     taxa_deslocamento: 0,
+
     duracao_horas: 1,
+
     valor_hora_profissional: 0,
-    valor_por_paciente: 0
+    valor_sessao_profissional: 0,
+    percentual_profissional: 0,
+
+    valor_por_paciente: 0,
+    valor_total_familia: 0,
+    valor_total_profissional: 0,
+    lucro_clinica: 0,
+
+    tipo_pagamento_profissional: 'Por hora'
   })
 
   async function carregarDados() {
@@ -77,10 +76,101 @@ export default function Agenda() {
     carregarDados()
   }, [])
 
+  useEffect(() => {
+    calcularFinanceiro()
+  }, [
+    form.tipo_atendimento,
+    form.valor_por_paciente,
+    form.duracao_horas,
+    form.valor_hora_profissional,
+    form.valor_sessao_profissional,
+    form.percentual_profissional,
+    form.tipo_pagamento_profissional,
+    pacientesGrupo
+  ])
+
   function atualizarCampo(campo, valor) {
     setForm((prev) => ({
       ...prev,
       [campo]: valor
+    }))
+  }
+
+  function selecionarProfissional(id) {
+    const prof = profissionais.find(
+      (p) => p.id === id
+    )
+
+    if (!prof) return
+
+    setForm((prev) => ({
+      ...prev,
+      profissional_id: id,
+
+      tipo_pagamento_profissional:
+        prof.tipo_pagamento || 'Por hora',
+
+      valor_hora_profissional:
+        Number(prof.valor_hora || 0),
+
+      valor_sessao_profissional:
+        Number(prof.valor_sessao || 0),
+
+      percentual_profissional:
+        Number(prof.percentual_repasse || 0)
+    }))
+  }
+
+  function calcularFinanceiro() {
+    const quantidadePacientes =
+      form.tipo_atendimento === 'Grupo'
+        ? pacientesGrupo.length
+        : 1
+
+    const receitaFamilia =
+      Number(form.valor_por_paciente || 0) *
+      quantidadePacientes
+
+    let pagamentoProfissional = 0
+
+    if (
+      form.tipo_pagamento_profissional ===
+      'Por hora'
+    ) {
+      pagamentoProfissional =
+        Number(form.valor_hora_profissional || 0) *
+        Number(form.duracao_horas || 1)
+    }
+
+    if (
+      form.tipo_pagamento_profissional ===
+      'Por sessão'
+    ) {
+      pagamentoProfissional =
+        Number(form.valor_sessao_profissional || 0)
+    }
+
+    if (
+      form.tipo_pagamento_profissional ===
+      'Percentual'
+    ) {
+      pagamentoProfissional =
+        receitaFamilia *
+        (Number(
+          form.percentual_profissional || 0
+        ) /
+          100)
+    }
+
+    const lucro =
+      receitaFamilia - pagamentoProfissional
+
+    setForm((prev) => ({
+      ...prev,
+      valor_total_familia: receitaFamilia,
+      valor_total_profissional:
+        pagamentoProfissional,
+      lucro_clinica: lucro
     }))
   }
 
@@ -96,12 +186,7 @@ export default function Agenda() {
 
   async function salvarAgenda() {
     if (!form.profissional_id) {
-      alert('Selecione o profissional')
-      return
-    }
-
-    if (!form.data || !form.horario) {
-      alert('Preencha data e horário')
+      alert('Selecione profissional')
       return
     }
 
@@ -109,36 +194,55 @@ export default function Agenda() {
       form.tipo_atendimento === 'Individual' &&
       !form.paciente_id
     ) {
-      alert('Selecione o paciente')
+      alert('Selecione paciente')
       return
     }
 
-    if (
-      form.tipo_atendimento === 'Grupo' &&
-      pacientesGrupo.length === 0
-    ) {
-      alert('Selecione os pacientes do grupo')
-      return
+    const dados = {
+      ...form,
+
+      taxa_deslocamento:
+        Number(form.taxa_deslocamento || 0),
+
+      duracao_horas:
+        Number(form.duracao_horas || 1),
+
+      valor_hora_profissional:
+        Number(form.valor_hora_profissional || 0),
+
+      valor_sessao_profissional:
+        Number(
+          form.valor_sessao_profissional || 0
+        ),
+
+      percentual_profissional:
+        Number(
+          form.percentual_profissional || 0
+        ),
+
+      valor_por_paciente:
+        Number(form.valor_por_paciente || 0),
+
+      valor_total_familia:
+        Number(form.valor_total_familia || 0),
+
+      valor_total_profissional:
+        Number(
+          form.valor_total_profissional || 0
+        ),
+
+      lucro_clinica:
+        Number(form.lucro_clinica || 0)
     }
 
     const { data, error } = await supabase
       .from('agenda')
-      .insert([{
-        ...form,
-        taxa_deslocamento:
-          Number(form.taxa_deslocamento || 0),
-        duracao_horas:
-          Number(form.duracao_horas || 1),
-        valor_hora_profissional:
-          Number(form.valor_hora_profissional || 0),
-        valor_por_paciente:
-          Number(form.valor_por_paciente || 0)
-      }])
+      .insert([dados])
       .select()
 
     if (error) {
       console.log(error)
-      alert('Erro ao salvar agenda')
+      alert('Erro ao salvar')
       return
     }
 
@@ -148,22 +252,33 @@ export default function Agenda() {
       agendaId &&
       form.tipo_atendimento === 'Grupo'
     ) {
-      const registros = pacientesGrupo.map((p) => ({
-        agenda_id: agendaId,
-        paciente_id: p,
-        valor_cobrado:
-          Number(form.valor_por_paciente || 0)
-      }))
+      const registros = pacientesGrupo.map(
+        (p) => ({
+          agenda_id: agendaId,
+          paciente_id: p,
+          valor_cobrado:
+            Number(
+              form.valor_por_paciente || 0
+            )
+        })
+      )
 
       await supabase
         .from('agenda_pacientes')
         .insert(registros)
     }
 
-    alert('Atendimento salvo')
+    alert('Agenda salva')
+
+    limparFormulario()
+
+    carregarDados()
+  }
+
+  function limparFormulario() {
+    setPacientesGrupo([])
 
     setForm({
-      titulo: '',
       paciente_id: '',
       profissional_id: '',
       servico: '',
@@ -172,56 +287,36 @@ export default function Agenda() {
       modalidade: 'Clínica',
       tipo_atendimento: 'Individual',
       status: 'Agendado',
+
       observacoes: '',
       repetir: false,
+
       link_videochamada: '',
       taxa_deslocamento: 0,
+
       duracao_horas: 1,
+
       valor_hora_profissional: 0,
-      valor_por_paciente: 0
+      valor_sessao_profissional: 0,
+      percentual_profissional: 0,
+
+      valor_por_paciente: 0,
+      valor_total_familia: 0,
+      valor_total_profissional: 0,
+      lucro_clinica: 0,
+
+      tipo_pagamento_profissional:
+        'Por hora'
     })
-
-    setPacientesGrupo([])
-
-    carregarDados()
   }
 
-  async function atualizarStatus(id, status) {
-    await supabase
-      .from('agenda')
-      .update({ status })
-      .eq('id', id)
-
-    carregarDados()
-  }
-
-  function abrirWhatsapp(item) {
-    const telefone =
-      item?.pacientes?.telefone || ''
-
-    const mensagem = encodeURIComponent(
-      `Olá! Confirmando seu atendimento no Espaço Montessoriano em ${item.data} às ${item.horario}.`
-    )
-
-    window.open(
-      `https://wa.me/55${telefone}?text=${mensagem}`,
-      '_blank'
-    )
-  }
-
-  const agendaFiltrada = useMemo(() => {
-    return agenda.filter((a) => {
-      const profissionalOk =
-        !filtroProfissional ||
-        a.profissional_id === filtroProfissional
-
-      const statusOk =
-        !filtroStatus ||
-        a.status === filtroStatus
-
-      return profissionalOk && statusOk
+  const agendaOrdenada = useMemo(() => {
+    return [...agenda].sort((a, b) => {
+      return (
+        new Date(a.data) - new Date(b.data)
+      )
     })
-  }, [agenda, filtroProfissional, filtroStatus])
+  }, [agenda])
 
   return (
     <div style={pagina}>
@@ -247,14 +342,13 @@ export default function Agenda() {
           <select
             value={form.profissional_id}
             onChange={(e) =>
-              atualizarCampo(
-                'profissional_id',
+              selecionarProfissional(
                 e.target.value
               )
             }
           >
             <option value="">
-              Selecione profissional
+              Profissional
             </option>
 
             {profissionais.map((p) => (
@@ -274,13 +368,15 @@ export default function Agenda() {
             }
           >
             <option value="">Serviço</option>
+
             <option>Fonoaudiologia</option>
             <option>Psicopedagogia</option>
-            <option>Acompanhamento Pedagógico</option>
+            <option>
+              Acompanhamento Pedagógico
+            </option>
             <option>Psicologia</option>
             <option>ABA</option>
             <option>Nutrição</option>
-            <option>Psicomotricidade</option>
           </select>
 
           <select
@@ -301,7 +397,10 @@ export default function Agenda() {
             type="date"
             value={form.data}
             onChange={(e) =>
-              atualizarCampo('data', e.target.value)
+              atualizarCampo(
+                'data',
+                e.target.value
+              )
             }
           />
 
@@ -314,14 +413,17 @@ export default function Agenda() {
               )
             }
           >
-            <option value="">Horário</option>
+            <option value="">
+              Horário
+            </option>
 
             {horarios.map((h) => (
               <option key={h}>{h}</option>
             ))}
           </select>
 
-          {form.tipo_atendimento === 'Individual' && (
+          {form.tipo_atendimento ===
+            'Individual' && (
             <select
               value={form.paciente_id}
               onChange={(e) =>
@@ -332,7 +434,7 @@ export default function Agenda() {
               }
             >
               <option value="">
-                Selecione paciente
+                Paciente
               </option>
 
               {pacientes.map((p) => (
@@ -345,35 +447,23 @@ export default function Agenda() {
 
           <input
             type="number"
+            placeholder="Valor cobrado da família"
+            value={form.valor_por_paciente}
+            onChange={(e) =>
+              atualizarCampo(
+                'valor_por_paciente',
+                e.target.value
+              )
+            }
+          />
+
+          <input
+            type="number"
             placeholder="Duração em horas"
             value={form.duracao_horas}
             onChange={(e) =>
               atualizarCampo(
                 'duracao_horas',
-                e.target.value
-              )
-            }
-          />
-
-          <input
-            type="number"
-            placeholder="Valor hora profissional"
-            value={form.valor_hora_profissional}
-            onChange={(e) =>
-              atualizarCampo(
-                'valor_hora_profissional',
-                e.target.value
-              )
-            }
-          />
-
-          <input
-            type="number"
-            placeholder="Valor por paciente"
-            value={form.valor_por_paciente}
-            onChange={(e) =>
-              atualizarCampo(
-                'valor_por_paciente',
                 e.target.value
               )
             }
@@ -451,11 +541,14 @@ export default function Agenda() {
 
         {form.tipo_atendimento === 'Grupo' && (
           <div style={grupoBox}>
-            <h3>Pacientes do grupo</h3>
+            <h3>Pacientes grupo</h3>
 
             <div style={grupoLista}>
               {pacientes.map((p) => (
-                <label key={p.id} style={grupoItem}>
+                <label
+                  key={p.id}
+                  style={grupoItem}
+                >
                   <input
                     type="checkbox"
                     checked={pacientesGrupo.includes(
@@ -472,6 +565,32 @@ export default function Agenda() {
           </div>
         )}
 
+        <div style={financeiroBox}>
+          <h2>Financeiro automático</h2>
+
+          <p>
+            <strong>Tipo pagamento:</strong>{' '}
+            {
+              form.tipo_pagamento_profissional
+            }
+          </p>
+
+          <p>
+            <strong>Família:</strong>{' '}
+            R$ {form.valor_total_familia}
+          </p>
+
+          <p>
+            <strong>Profissional:</strong>{' '}
+            R$ {form.valor_total_profissional}
+          </p>
+
+          <p>
+            <strong>Lucro clínica:</strong>{' '}
+            R$ {form.lucro_clinica}
+          </p>
+        </div>
+
         <button
           onClick={salvarAgenda}
           style={botaoPrincipal}
@@ -481,65 +600,20 @@ export default function Agenda() {
       </div>
 
       <div style={box}>
-        <h2>Filtros</h2>
+        <h2>Agenda cadastrada</h2>
 
-        <div style={grid}>
-          <select
-            value={filtroProfissional}
-            onChange={(e) =>
-              setFiltroProfissional(e.target.value)
-            }
-          >
-            <option value="">
-              Todos profissionais
-            </option>
-
-            {profissionais.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filtroStatus}
-            onChange={(e) =>
-              setFiltroStatus(e.target.value)
-            }
-          >
-            <option value="">
-              Todos status
-            </option>
-
-            <option>Agendado</option>
-            <option>Confirmado</option>
-            <option>Realizado</option>
-            <option>Falta</option>
-            <option>Cancelado</option>
-            <option>Reposição</option>
-          </select>
-        </div>
-      </div>
-
-      <div style={box}>
-        <h2>Agenda semanal</h2>
-
-        <p>
-          Segunda a sábado — 08h às 19h
-        </p>
-
-        {agendaFiltrada.map((item) => (
+        {agendaOrdenada.map((item) => (
           <div key={item.id} style={card}>
-            <h3>
-              {item.servico}
-            </h3>
+            <h3>{item.servico}</h3>
 
             <p>
-              <strong>Data:</strong> {item.data}
+              <strong>Data:</strong>{' '}
+              {item.data}
             </p>
 
             <p>
-              <strong>Horário:</strong> {item.horario}
+              <strong>Horário:</strong>{' '}
+              {item.horario}
             </p>
 
             <p>
@@ -549,83 +623,27 @@ export default function Agenda() {
 
             <p>
               <strong>Paciente:</strong>{' '}
-              {item.pacientes?.nome || 'Grupo'}
+              {item.pacientes?.nome ||
+                'Grupo'}
             </p>
 
             <p>
-              <strong>Tipo:</strong>{' '}
-              {item.tipo_atendimento}
+              <strong>Receita família:</strong>{' '}
+              R$ {item.valor_total_familia}
             </p>
 
             <p>
-              <strong>Modalidade:</strong>{' '}
-              {item.modalidade}
+              <strong>Pagamento profissional:</strong>{' '}
+              R${' '}
+              {
+                item.valor_total_profissional
+              }
             </p>
 
             <p>
-              <strong>Status:</strong>{' '}
-              {item.status}
+              <strong>Lucro clínica:</strong>{' '}
+              R$ {item.lucro_clinica}
             </p>
-
-            <p>
-              <strong>Duração:</strong>{' '}
-              {item.duracao_horas}h
-            </p>
-
-            <p>
-              <strong>Valor hora profissional:</strong>{' '}
-              R$ {item.valor_hora_profissional}
-            </p>
-
-            <p>
-              <strong>Valor por paciente:</strong>{' '}
-              R$ {item.valor_por_paciente}
-            </p>
-
-            <div style={acoes}>
-              <button
-                onClick={() =>
-                  atualizarStatus(
-                    item.id,
-                    'Confirmado'
-                  )
-                }
-                style={botaoConfirmar}
-              >
-                Confirmar
-              </button>
-
-              <button
-                onClick={() =>
-                  atualizarStatus(
-                    item.id,
-                    'Realizado'
-                  )
-                }
-                style={botaoRealizado}
-              >
-                Realizado
-              </button>
-
-              <button
-                onClick={() =>
-                  abrirWhatsapp(item)
-                }
-                style={botaoWhatsapp}
-              >
-                WhatsApp
-              </button>
-
-              {item.link_videochamada && (
-                <a
-                  href={item.link_videochamada}
-                  target="_blank"
-                  style={botaoVideo}
-                >
-                  Videochamada
-                </a>
-              )}
-            </div>
           </div>
         ))}
       </div>
@@ -635,9 +653,9 @@ export default function Agenda() {
 
 const pagina = {
   padding: 30,
-  fontFamily: 'Arial',
   background: '#f5f7fb',
-  minHeight: '100vh'
+  minHeight: '100vh',
+  fontFamily: 'Arial'
 }
 
 const box = {
@@ -663,7 +681,8 @@ const grupoBox = {
 
 const grupoLista = {
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr 1fr',
+  gridTemplateColumns:
+    '1fr 1fr 1fr',
   gap: 10,
   marginTop: 15
 }
@@ -675,6 +694,14 @@ const grupoItem = {
   border: '1px solid #ddd'
 }
 
+const financeiroBox = {
+  marginTop: 25,
+  background: '#ecfeff',
+  border: '1px solid #a5f3fc',
+  borderRadius: 14,
+  padding: 20
+}
+
 const card = {
   background: '#f8fafc',
   padding: 20,
@@ -683,55 +710,13 @@ const card = {
   border: '1px solid #e5e7eb'
 }
 
-const acoes = {
-  display: 'flex',
-  gap: 10,
-  marginTop: 15,
-  flexWrap: 'wrap'
-}
-
 const botaoPrincipal = {
   marginTop: 25,
   background: '#0f766e',
   color: '#fff',
   border: 'none',
-  borderRadius: 10,
   padding: 14,
+  borderRadius: 10,
   cursor: 'pointer',
   fontWeight: 'bold'
-}
-
-const botaoConfirmar = {
-  background: '#2563eb',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 10,
-  padding: 10,
-  cursor: 'pointer'
-}
-
-const botaoRealizado = {
-  background: '#16a34a',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 10,
-  padding: 10,
-  cursor: 'pointer'
-}
-
-const botaoWhatsapp = {
-  background: '#22c55e',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 10,
-  padding: 10,
-  cursor: 'pointer'
-}
-
-const botaoVideo = {
-  background: '#7c3aed',
-  color: '#fff',
-  borderRadius: 10,
-  padding: 10,
-  textDecoration: 'none'
 }
