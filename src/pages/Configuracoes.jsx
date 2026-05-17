@@ -238,25 +238,102 @@ export default function Configuracoes() {
 
       {aba === 'financeiro' && (
         <div style={box}>
-          <h2>Configurações financeiras</h2>
+          <div style={box}>
+  <h2>Configurações financeiras</h2>
 
-          <div style={grid}>
-            <input type="number" placeholder="Dia de vencimento" value={form.dia_vencimento || 5} onChange={(e) => atualizarCampo('dia_vencimento', e.target.value)} />
-            <input type="number" placeholder="Multa por atraso (%)" value={form.multa_atraso || 0} onChange={(e) => atualizarCampo('multa_atraso', e.target.value)} />
-            <input type="number" placeholder="Juros por atraso (%)" value={form.juros_atraso || 0} onChange={(e) => atualizarCampo('juros_atraso', e.target.value)} />
+  <p style={descricao}>
+    Configure regras automáticas de cobrança,
+    vencimento e mensagens enviadas às famílias.
+  </p>
 
-            <textarea
-              placeholder="Mensagem padrão de cobrança"
-              value={form.mensagem_cobranca || ''}
-              onChange={(e) => atualizarCampo('mensagem_cobranca', e.target.value)}
-              style={{ gridColumn: '1 / span 2', minHeight: 160 }}
-            />
-          </div>
-        </div>
-      )}
+  <div style={grid}>
+    <div>
+      <label style={label}>
+        Dia padrão de vencimento
+      </label>
 
-      {aba === 'agenda' && (
-        <div style={box}>
+      <small style={small}>
+        Exemplo: 5 = pagamento até dia 5.
+      </small>
+
+      <input
+        type="number"
+        value={form.dia_vencimento || 5}
+        onChange={(e) =>
+          atualizarCampo(
+            'dia_vencimento',
+            e.target.value
+          )
+        }
+      />
+    </div>
+
+    <div>
+      <label style={label}>
+        Multa por atraso (%)
+      </label>
+
+      <small style={small}>
+        Multa fixa aplicada após vencimento.
+      </small>
+
+      <input
+        type="number"
+        value={form.multa_atraso || 0}
+        onChange={(e) =>
+          atualizarCampo(
+            'multa_atraso',
+            e.target.value
+          )
+        }
+      />
+    </div>
+
+    <div>
+      <label style={label}>
+        Juros mensal (%)
+      </label>
+
+      <small style={small}>
+        Juros aplicados em caso de atraso.
+      </small>
+
+      <input
+        type="number"
+        value={form.juros_atraso || 0}
+        onChange={(e) =>
+          atualizarCampo(
+            'juros_atraso',
+            e.target.value
+          )
+        }
+      />
+    </div>
+  </div>
+
+  <div style={{ marginTop: 20 }}>
+    <label style={label}>
+      Mensagem padrão de cobrança
+    </label>
+
+    <small style={small}>
+      Texto automático enviado para as famílias
+      junto ao fechamento mensal.
+    </small>
+
+    <textarea
+      placeholder="Digite a mensagem padrão"
+      value={form.mensagem_cobranca || ''}
+      onChange={(e) =>
+        atualizarCampo(
+          'mensagem_cobranca',
+          e.target.value
+        )
+      }
+      style={textarea}
+    />
+  </div>
+</div>
           <h2>Configurações da agenda</h2>
 
           <div style={grid}>
@@ -436,4 +513,21 @@ const botaoSair = {
   borderRadius: 12,
   cursor: 'pointer',
   fontWeight: 'bold'
+}
+const label = {
+  display: 'block',
+  fontWeight: 'bold',
+  marginBottom: 6
+}
+
+const small = {
+  display: 'block',
+  color: '#666',
+  marginBottom: 8,
+  fontSize: 13
+}
+
+const descricao = {
+  color: '#666',
+  marginBottom: 20
 }
