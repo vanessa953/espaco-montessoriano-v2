@@ -1,0 +1,27 @@
+import Layout from '../components/Layout'
+
+export default function Profissionais() {
+  return (
+    <Layout title="Profissionais" subtitle="Cadastro de equipe, perfis e permissões">
+      <div className="panel">
+        <div className="panelHead">
+          <h2>Profissionais</h2>
+          <button className="primary">Novo registro</button>
+        </div>
+        <div className="formGrid">
+          <label>Nome<input placeholder="Nome completo" /></label>
+<label>Profissão<input placeholder="Fonoaudióloga, Psicopedagoga" /></label>
+<label>E-mail/Login<input placeholder="email@dominio.com" /></label>
+<label>WhatsApp<input placeholder="(61) 99999-9999" /></label>
+<label>Nível de acesso<input placeholder="Admin/Terapeuta/Financeiro/Recepção" /></label>
+<label>Especialidade<input placeholder="Área de atuação" /></label>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Registros</h2>
+        <p className="empty">Nenhum registro cadastrado ainda. Estrutura preparada para conexão com Supabase.</p>
+      </div>
+    </Layout>
+  )
+}
