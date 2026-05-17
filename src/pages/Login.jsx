@@ -24,7 +24,7 @@ export default function Login() {
       return
     }
 
-window.location.href = '/'
+alert('Login realizado com sucesso!')
   }
 
   return (
