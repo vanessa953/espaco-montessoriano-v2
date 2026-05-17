@@ -1,0 +1,27 @@
+import Layout from '../components/Layout'
+
+export default function Familia() {
+  return (
+    <Layout title="App Família" subtitle="Área familiar para agenda e resumo de sessão">
+      <div className="panel">
+        <div className="panelHead">
+          <h2>App Família</h2>
+          <button className="primary">Novo registro</button>
+        </div>
+        <div className="formGrid">
+          <label>Paciente<input placeholder="Nome do paciente" /></label>
+<label>Responsável<input placeholder="Nome do responsável" /></label>
+<label>Login família<input placeholder="CPF ou login gerado" /></label>
+<label>Senha temporária<input placeholder="Senha inicial" /></label>
+<label>Resumo liberado<input placeholder="Resumo da sessão" /></label>
+<label>Link de vídeo<input placeholder="Atendimento online" /></label>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Registros</h2>
+        <p className="empty">Nenhum registro cadastrado ainda. Estrutura preparada para conexão com Supabase.</p>
+      </div>
+    </Layout>
+  )
+}
