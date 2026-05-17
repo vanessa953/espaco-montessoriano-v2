@@ -1,513 +1,631 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+const horarios = []
 
-function gerarHorarios() {
-  const horarios = []
-  for (let h = 8; h <= 19; h++) {
-    horarios.push(`${String(h).padStart(2, '0')}:00`)
-    if (h < 19) horarios.push(`${String(h).padStart(2, '0')}:30`)
+for (let h = 8; h <= 19; h++) {
+  horarios.push(`${String(h).padStart(2, '0')}:00`)
+  if (h !== 19) {
+    horarios.push(`${String(h).padStart(2, '0')}:30`)
   }
-  return horarios
 }
 
-function diaSemanaBR(data) {
-  if (!data) return ''
-  const d = new Date(data + 'T12:00:00')
-  const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-  return nomes[d.getDay()]
-}
-
-function somarSemanas(data, semanas) {
-  const d = new Date(data + 'T12:00:00')
-  d.setDate(d.getDate() + semanas * 7)
-  return d.toISOString().slice(0, 10)
-}
-
-function formatarData(data) {
-  if (!data) return '-'
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}/${ano}`
-}
-
-function dinheiro(valor) {
-  return Number(valor || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  })
-}
+const diasSemana = [
+  'Segunda',
+  'Terça',
+  'Quarta',
+  'Quinta',
+  'Sexta',
+  'Sábado'
+]
 
 export default function Agenda() {
   const [agenda, setAgenda] = useState([])
   const [pacientes, setPacientes] = useState([])
   const [profissionais, setProfissionais] = useState([])
 
-  const [filtros, setFiltros] = useState({
-    status: '',
-    modalidade: '',
-    profissional_id: '',
-    data: ''
-  })
+  const [filtroProfissional, setFiltroProfissional] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+
+  const [pacientesGrupo, setPacientesGrupo] = useState([])
 
   const [form, setForm] = useState({
+    titulo: '',
     paciente_id: '',
     profissional_id: '',
     servico: '',
-    titulo: '',
-    descricao: '',
     data: '',
     horario: '',
-    status: 'agendado',
     modalidade: 'Clínica',
+    tipo_atendimento: 'Individual',
+    status: 'Agendado',
+    observacoes: '',
+    repetir: false,
+    link_videochamada: '',
     taxa_deslocamento: 0,
-    link_video: '',
-    repetir: 'nao'
+    duracao_horas: 1,
+    valor_hora_profissional: 0,
+    valor_por_paciente: 0
   })
 
-  const horarios = gerarHorarios()
-
-  async function carregarPacientes() {
-    const { data } = await supabase
-      .from('pacientes')
-      .select('id, nome, telefone')
-      .order('nome')
-
-    setPacientes(data || [])
-  }
-
-  async function carregarProfissionais() {
-    const { data } = await supabase
-      .from('profissionais')
-      .select('id, nome, cargo, especialidade')
-      .order('nome')
-
-    setProfissionais(data || [])
-  }
-
-  async function carregarAgenda() {
-    const { data, error } = await supabase
+  async function carregarDados() {
+    const { data: agendaData } = await supabase
       .from('agenda')
       .select(`
         *,
-        pacientes (
-          nome,
-          telefone
-        ),
-        profissionais (
-          nome
-        )
+        pacientes(nome, telefone),
+        profissionais(nome)
       `)
-      .order('data', { ascending: true })
-      .order('horario', { ascending: true })
+      .order('data')
 
-    if (error) {
-      console.log(error)
-      return
-    }
+    const { data: pacientesData } = await supabase
+      .from('pacientes')
+      .select('*')
+      .order('nome')
 
-    setAgenda(data || [])
+    const { data: profissionaisData } = await supabase
+      .from('profissionais')
+      .select('*')
+      .order('nome')
+
+    setAgenda(agendaData || [])
+    setPacientes(pacientesData || [])
+    setProfissionais(profissionaisData || [])
   }
 
   useEffect(() => {
-    carregarPacientes()
-    carregarProfissionais()
-    carregarAgenda()
+    carregarDados()
   }, [])
 
   function atualizarCampo(campo, valor) {
-    setForm((prev) => {
-      const novo = { ...prev, [campo]: valor }
-
-      if (campo === 'modalidade') {
-        if (valor === 'Domiciliar') {
-          novo.taxa_deslocamento = prev.taxa_deslocamento || 50
-        } else {
-          novo.taxa_deslocamento = 0
-        }
-      }
-
-      return novo
-    })
+    setForm((prev) => ({
+      ...prev,
+      [campo]: valor
+    }))
   }
 
-  async function cadastrarAtendimento() {
-    if (!form.paciente_id || !form.data || !form.horario || !form.servico) {
-      alert('Preencha paciente, serviço, data e horário.')
+  function togglePacienteGrupo(id) {
+    if (pacientesGrupo.includes(id)) {
+      setPacientesGrupo(
+        pacientesGrupo.filter((p) => p !== id)
+      )
+    } else {
+      setPacientesGrupo([...pacientesGrupo, id])
+    }
+  }
+
+  async function salvarAgenda() {
+    if (!form.profissional_id) {
+      alert('Selecione o profissional')
       return
     }
 
-    if (form.modalidade === 'Vídeo' && !form.link_video) {
-      alert('Para atendimento por vídeo, informe o link da videochamada.')
+    if (!form.data || !form.horario) {
+      alert('Preencha data e horário')
       return
     }
 
-    const quantidade =
-      form.repetir === '4' ? 4 :
-      form.repetir === '8' ? 8 :
-      form.repetir === '12' ? 12 :
-      1
-
-    const recorrenciaId = quantidade > 1 ? String(Date.now()) : null
-
-    const registros = []
-
-    for (let i = 0; i < quantidade; i++) {
-      const dataFinal = i === 0 ? form.data : somarSemanas(form.data, i)
-
-      registros.push({
-        paciente_id: form.paciente_id,
-        profissional_id: form.profissional_id || null,
-        servico: form.servico,
-        titulo: form.titulo || form.servico,
-        descricao: form.descricao,
-        data: dataFinal,
-        horario: form.horario,
-        status: form.status,
-        modalidade: form.modalidade,
-        taxa_deslocamento: Number(form.taxa_deslocamento || 0),
-        link_video: form.link_video,
-        repetir_semanal: quantidade > 1,
-        recorrencia_id: recorrenciaId
-      })
+    if (
+      form.tipo_atendimento === 'Individual' &&
+      !form.paciente_id
+    ) {
+      alert('Selecione o paciente')
+      return
     }
 
-    const { error } = await supabase
+    if (
+      form.tipo_atendimento === 'Grupo' &&
+      pacientesGrupo.length === 0
+    ) {
+      alert('Selecione os pacientes do grupo')
+      return
+    }
+
+    const { data, error } = await supabase
       .from('agenda')
-      .insert(registros)
+      .insert([{
+        ...form,
+        taxa_deslocamento:
+          Number(form.taxa_deslocamento || 0),
+        duracao_horas:
+          Number(form.duracao_horas || 1),
+        valor_hora_profissional:
+          Number(form.valor_hora_profissional || 0),
+        valor_por_paciente:
+          Number(form.valor_por_paciente || 0)
+      }])
+      .select()
 
     if (error) {
       console.log(error)
-      alert('Erro ao cadastrar atendimento.')
+      alert('Erro ao salvar agenda')
       return
     }
 
-    alert(
-      quantidade > 1
-        ? 'Atendimentos recorrentes cadastrados com sucesso.'
-        : 'Atendimento cadastrado com sucesso.'
-    )
+    const agendaId = data?.[0]?.id
+
+    if (
+      agendaId &&
+      form.tipo_atendimento === 'Grupo'
+    ) {
+      const registros = pacientesGrupo.map((p) => ({
+        agenda_id: agendaId,
+        paciente_id: p,
+        valor_cobrado:
+          Number(form.valor_por_paciente || 0)
+      }))
+
+      await supabase
+        .from('agenda_pacientes')
+        .insert(registros)
+    }
+
+    alert('Atendimento salvo')
 
     setForm({
+      titulo: '',
       paciente_id: '',
       profissional_id: '',
       servico: '',
-      titulo: '',
-      descricao: '',
       data: '',
       horario: '',
-      status: 'agendado',
       modalidade: 'Clínica',
+      tipo_atendimento: 'Individual',
+      status: 'Agendado',
+      observacoes: '',
+      repetir: false,
+      link_videochamada: '',
       taxa_deslocamento: 0,
-      link_video: '',
-      repetir: 'nao'
+      duracao_horas: 1,
+      valor_hora_profissional: 0,
+      valor_por_paciente: 0
     })
 
-    carregarAgenda()
+    setPacientesGrupo([])
+
+    carregarDados()
   }
 
-  function enviarWhatsApp(item) {
-    const telefone = item.pacientes?.telefone
+  async function atualizarStatus(id, status) {
+    await supabase
+      .from('agenda')
+      .update({ status })
+      .eq('id', id)
 
-    if (!telefone) {
-      alert('Paciente sem WhatsApp cadastrado.')
-      return
-    }
+    carregarDados()
+  }
 
-    const numero = telefone.replace(/\D/g, '')
+  function abrirWhatsapp(item) {
+    const telefone =
+      item?.pacientes?.telefone || ''
 
-    const mensagem = `Olá! Confirmamos o atendimento no Espaço Montessoriano.%0A%0APaciente: ${item.pacientes?.nome}%0AData: ${formatarData(item.data)}%0AHorário: ${item.horario}%0AServiço: ${item.servico || item.titulo}%0AModalidade: ${item.modalidade}%0AStatus: ${item.status}${item.link_video ? `%0ALink: ${item.link_video}` : ''}%0A%0AQualquer dúvida, estamos à disposição.`
+    const mensagem = encodeURIComponent(
+      `Olá! Confirmando seu atendimento no Espaço Montessoriano em ${item.data} às ${item.horario}.`
+    )
 
-    window.open(`https://wa.me/55${numero}?text=${mensagem}`, '_blank')
+    window.open(
+      `https://wa.me/55${telefone}?text=${mensagem}`,
+      '_blank'
+    )
   }
 
   const agendaFiltrada = useMemo(() => {
-    return agenda.filter((item) => {
-      if (filtros.status && item.status !== filtros.status) return false
-      if (filtros.modalidade && item.modalidade !== filtros.modalidade) return false
-      if (filtros.profissional_id && item.profissional_id !== filtros.profissional_id) return false
-      if (filtros.data && item.data !== filtros.data) return false
-      return true
+    return agenda.filter((a) => {
+      const profissionalOk =
+        !filtroProfissional ||
+        a.profissional_id === filtroProfissional
+
+      const statusOk =
+        !filtroStatus ||
+        a.status === filtroStatus
+
+      return profissionalOk && statusOk
     })
-  }, [agenda, filtros])
-
-  const resumoFinanceiro = useMemo(() => {
-    const totalDomiciliar = agendaFiltrada
-      .filter((item) => item.modalidade === 'Domiciliar')
-      .reduce((soma, item) => soma + Number(item.taxa_deslocamento || 0), 0)
-
-    return {
-      totalSessoes: agendaFiltrada.length,
-      clinica: agendaFiltrada.filter((i) => i.modalidade === 'Clínica').length,
-      domiciliar: agendaFiltrada.filter((i) => i.modalidade === 'Domiciliar').length,
-      video: agendaFiltrada.filter((i) => i.modalidade === 'Vídeo').length,
-      deslocamento: totalDomiciliar
-    }
-  }, [agendaFiltrada])
+  }, [agenda, filtroProfissional, filtroStatus])
 
   return (
-    <div style={{ padding: 30, fontFamily: 'Arial', background: '#f5f7fb', minHeight: '100vh' }}>
-      <h1>Agenda Profissional</h1>
-
-      <p style={{ color: '#666', marginBottom: 30 }}>
-        Visão semanal, atendimentos recorrentes, modalidade, profissional, serviço, WhatsApp e financeiro da agenda.
-      </p>
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
-        gap: 12,
-        marginBottom: 25
-      }}>
-        <div style={cardResumo}>
-          <strong>{resumoFinanceiro.totalSessoes}</strong>
-          <span>Total de sessões</span>
-        </div>
-
-        <div style={cardResumo}>
-          <strong>{resumoFinanceiro.clinica}</strong>
-          <span>Clínica</span>
-        </div>
-
-        <div style={cardResumo}>
-          <strong>{resumoFinanceiro.domiciliar}</strong>
-          <span>Domiciliar</span>
-        </div>
-
-        <div style={cardResumo}>
-          <strong>{resumoFinanceiro.video}</strong>
-          <span>Vídeo</span>
-        </div>
-
-        <div style={cardResumo}>
-          <strong>{dinheiro(resumoFinanceiro.deslocamento)}</strong>
-          <span>Taxas deslocamento</span>
-        </div>
-      </div>
+    <div style={pagina}>
+      <h1>Agenda Inteligente</h1>
 
       <div style={box}>
-        <h2>Cadastrar atendimento</h2>
+        <h2>Novo atendimento</h2>
 
         <div style={grid}>
-          <select value={form.paciente_id} onChange={(e) => atualizarCampo('paciente_id', e.target.value)}>
-            <option value="">Selecione o paciente</option>
-            {pacientes.map((p) => (
-              <option key={p.id} value={p.id}>{p.nome}</option>
-            ))}
+          <select
+            value={form.tipo_atendimento}
+            onChange={(e) =>
+              atualizarCampo(
+                'tipo_atendimento',
+                e.target.value
+              )
+            }
+          >
+            <option>Individual</option>
+            <option>Grupo</option>
           </select>
 
-          <select value={form.profissional_id} onChange={(e) => atualizarCampo('profissional_id', e.target.value)}>
-            <option value="">Selecione o profissional</option>
+          <select
+            value={form.profissional_id}
+            onChange={(e) =>
+              atualizarCampo(
+                'profissional_id',
+                e.target.value
+              )
+            }
+          >
+            <option value="">
+              Selecione profissional
+            </option>
+
             {profissionais.map((p) => (
-              <option key={p.id} value={p.id}>{p.nome}</option>
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
             ))}
           </select>
 
-          <select value={form.servico} onChange={(e) => atualizarCampo('servico', e.target.value)}>
-            <option value="">Serviço/Terapia</option>
+          <select
+            value={form.servico}
+            onChange={(e) =>
+              atualizarCampo(
+                'servico',
+                e.target.value
+              )
+            }
+          >
+            <option value="">Serviço</option>
             <option>Fonoaudiologia</option>
             <option>Psicopedagogia</option>
+            <option>Acompanhamento Pedagógico</option>
             <option>Psicologia</option>
             <option>ABA</option>
-            <option>Psicomotricidade</option>
             <option>Nutrição</option>
-            <option>Acompanhamento Pedagógico</option>
-            <option>Avaliação Neuropsicológica</option>
-            <option>Mapeamento Cerebral</option>
-            <option>Neuromodulação</option>
-            <option>Reunião com Família</option>
-            <option>Reunião Escolar</option>
-            <option>Visita Escolar</option>
+            <option>Psicomotricidade</option>
           </select>
 
-          <input
-            placeholder="Título do atendimento"
-            value={form.titulo}
-            onChange={(e) => atualizarCampo('titulo', e.target.value)}
-          />
+          <select
+            value={form.modalidade}
+            onChange={(e) =>
+              atualizarCampo(
+                'modalidade',
+                e.target.value
+              )
+            }
+          >
+            <option>Clínica</option>
+            <option>Domiciliar</option>
+            <option>Vídeo</option>
+          </select>
 
           <input
             type="date"
             value={form.data}
-            onChange={(e) => atualizarCampo('data', e.target.value)}
+            onChange={(e) =>
+              atualizarCampo('data', e.target.value)
+            }
           />
 
-          <input
-            type="time"
+          <select
             value={form.horario}
-            onChange={(e) => atualizarCampo('horario', e.target.value)}
-          />
+            onChange={(e) =>
+              atualizarCampo(
+                'horario',
+                e.target.value
+              )
+            }
+          >
+            <option value="">Horário</option>
 
-          <select value={form.status} onChange={(e) => atualizarCampo('status', e.target.value)}>
-            <option value="agendado">Agendado</option>
-            <option value="confirmado">Confirmado</option>
-            <option value="realizado">Realizado</option>
-            <option value="falta">Falta</option>
-            <option value="cancelado">Cancelado</option>
-            <option value="reposicao">Reposição</option>
+            {horarios.map((h) => (
+              <option key={h}>{h}</option>
+            ))}
           </select>
 
-          <select value={form.modalidade} onChange={(e) => atualizarCampo('modalidade', e.target.value)}>
-            <option value="Clínica">Clínica</option>
-            <option value="Domiciliar">Domiciliar</option>
-            <option value="Vídeo">Vídeo</option>
-          </select>
+          {form.tipo_atendimento === 'Individual' && (
+            <select
+              value={form.paciente_id}
+              onChange={(e) =>
+                atualizarCampo(
+                  'paciente_id',
+                  e.target.value
+                )
+              }
+            >
+              <option value="">
+                Selecione paciente
+              </option>
+
+              {pacientes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          )}
 
           <input
             type="number"
-            placeholder="Taxa de deslocamento"
-            value={form.taxa_deslocamento}
-            onChange={(e) => atualizarCampo('taxa_deslocamento', e.target.value)}
-            disabled={form.modalidade !== 'Domiciliar'}
+            placeholder="Duração em horas"
+            value={form.duracao_horas}
+            onChange={(e) =>
+              atualizarCampo(
+                'duracao_horas',
+                e.target.value
+              )
+            }
           />
 
           <input
-            placeholder="Link de videochamada"
-            value={form.link_video}
-            onChange={(e) => atualizarCampo('link_video', e.target.value)}
+            type="number"
+            placeholder="Valor hora profissional"
+            value={form.valor_hora_profissional}
+            onChange={(e) =>
+              atualizarCampo(
+                'valor_hora_profissional',
+                e.target.value
+              )
+            }
           />
 
-          <select value={form.repetir} onChange={(e) => atualizarCampo('repetir', e.target.value)}>
-            <option value="nao">Não repetir</option>
-            <option value="4">Repetir semanalmente por 4 semanas</option>
-            <option value="8">Repetir semanalmente por 8 semanas</option>
-            <option value="12">Repetir semanalmente por 12 semanas</option>
+          <input
+            type="number"
+            placeholder="Valor por paciente"
+            value={form.valor_por_paciente}
+            onChange={(e) =>
+              atualizarCampo(
+                'valor_por_paciente',
+                e.target.value
+              )
+            }
+          />
+
+          <input
+            type="number"
+            placeholder="Taxa deslocamento"
+            value={form.taxa_deslocamento}
+            onChange={(e) =>
+              atualizarCampo(
+                'taxa_deslocamento',
+                e.target.value
+              )
+            }
+          />
+
+          <select
+            value={form.status}
+            onChange={(e) =>
+              atualizarCampo(
+                'status',
+                e.target.value
+              )
+            }
+          >
+            <option>Agendado</option>
+            <option>Confirmado</option>
+            <option>Realizado</option>
+            <option>Falta</option>
+            <option>Cancelado</option>
+            <option>Reposição</option>
           </select>
+
+          <input
+            placeholder="Link videochamada"
+            value={form.link_videochamada}
+            onChange={(e) =>
+              atualizarCampo(
+                'link_videochamada',
+                e.target.value
+              )
+            }
+          />
 
           <textarea
             placeholder="Observações"
-            value={form.descricao}
-            onChange={(e) => atualizarCampo('descricao', e.target.value)}
-            style={{ gridColumn: '1 / span 2', minHeight: 90 }}
+            value={form.observacoes}
+            onChange={(e) =>
+              atualizarCampo(
+                'observacoes',
+                e.target.value
+              )
+            }
+            style={{
+              gridColumn: '1 / span 2',
+              minHeight: 100
+            }}
           />
 
-          <button onClick={cadastrarAtendimento} style={botaoPrincipal}>
-            Cadastrar Atendimento
-          </button>
+          <label>
+            <input
+              type="checkbox"
+              checked={form.repetir}
+              onChange={(e) =>
+                atualizarCampo(
+                  'repetir',
+                  e.target.checked
+                )
+              }
+            />{' '}
+            Repetir semanalmente
+          </label>
+        </div>
+
+        {form.tipo_atendimento === 'Grupo' && (
+          <div style={grupoBox}>
+            <h3>Pacientes do grupo</h3>
+
+            <div style={grupoLista}>
+              {pacientes.map((p) => (
+                <label key={p.id} style={grupoItem}>
+                  <input
+                    type="checkbox"
+                    checked={pacientesGrupo.includes(
+                      p.id
+                    )}
+                    onChange={() =>
+                      togglePacienteGrupo(p.id)
+                    }
+                  />{' '}
+                  {p.nome}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={salvarAgenda}
+          style={botaoPrincipal}
+        >
+          Salvar atendimento
+        </button>
+      </div>
+
+      <div style={box}>
+        <h2>Filtros</h2>
+
+        <div style={grid}>
+          <select
+            value={filtroProfissional}
+            onChange={(e) =>
+              setFiltroProfissional(e.target.value)
+            }
+          >
+            <option value="">
+              Todos profissionais
+            </option>
+
+            {profissionais.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filtroStatus}
+            onChange={(e) =>
+              setFiltroStatus(e.target.value)
+            }
+          >
+            <option value="">
+              Todos status
+            </option>
+
+            <option>Agendado</option>
+            <option>Confirmado</option>
+            <option>Realizado</option>
+            <option>Falta</option>
+            <option>Cancelado</option>
+            <option>Reposição</option>
+          </select>
         </div>
       </div>
 
       <div style={box}>
-        <h2>Filtros da agenda</h2>
+        <h2>Agenda semanal</h2>
 
-        <div style={grid}>
-          <input
-            type="date"
-            value={filtros.data}
-            onChange={(e) => setFiltros({ ...filtros, data: e.target.value })}
-          />
+        <p>
+          Segunda a sábado — 08h às 19h
+        </p>
 
-          <select value={filtros.status} onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}>
-            <option value="">Todos os status</option>
-            <option value="agendado">Agendado</option>
-            <option value="confirmado">Confirmado</option>
-            <option value="realizado">Realizado</option>
-            <option value="falta">Falta</option>
-            <option value="cancelado">Cancelado</option>
-            <option value="reposicao">Reposição</option>
-          </select>
-
-          <select value={filtros.modalidade} onChange={(e) => setFiltros({ ...filtros, modalidade: e.target.value })}>
-            <option value="">Todas as modalidades</option>
-            <option value="Clínica">Clínica</option>
-            <option value="Domiciliar">Domiciliar</option>
-            <option value="Vídeo">Vídeo</option>
-          </select>
-
-          <select value={filtros.profissional_id} onChange={(e) => setFiltros({ ...filtros, profissional_id: e.target.value })}>
-            <option value="">Todos os profissionais</option>
-            {profissionais.map((p) => (
-              <option key={p.id} value={p.id}>{p.nome}</option>
-            ))}
-          </select>
-
-          <button onClick={() => setFiltros({ status: '', modalidade: '', profissional_id: '', data: '' })}>
-            Limpar filtros
-          </button>
-        </div>
-      </div>
-
-      <h2>Visão semanal</h2>
-
-      <div style={{ overflowX: 'auto' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '90px repeat(6, minmax(180px, 1fr))',
-          background: '#fff',
-          borderRadius: 16,
-          overflow: 'hidden',
-          border: '1px solid #ddd'
-        }}>
-          <div style={cabecalho}>Horário</div>
-
-          {DIAS.map((dia) => (
-            <div key={dia} style={cabecalho}>{dia}</div>
-          ))}
-
-          {horarios.map((hora) => (
-            <>
-              <div key={`hora-${hora}`} style={celulaHora}>{hora}</div>
-
-              {DIAS.map((dia) => {
-                const itens = agendaFiltrada.filter(
-                  (item) => item.horario === hora && diaSemanaBR(item.data) === dia
-                )
-
-                return (
-                  <div key={`${dia}-${hora}`} style={celula}>
-                    {itens.map((item) => (
-                      <div key={item.id} style={evento}>
-                        <strong>{item.pacientes?.nome}</strong>
-                        <span>{item.servico || item.titulo}</span>
-                        <small>{item.modalidade} • {item.status}</small>
-
-                        {item.link_video && (
-                          <a href={item.link_video} target="_blank">
-                            Abrir vídeo
-                          </a>
-                        )}
-
-                        <button onClick={() => enviarWhatsApp(item)}>
-                          WhatsApp
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </>
-          ))}
-        </div>
-      </div>
-
-      <h2 style={{ marginTop: 40 }}>Lista de atendimentos</h2>
-
-      <div style={{ display: 'grid', gap: 15, marginTop: 20 }}>
         {agendaFiltrada.map((item) => (
-          <div key={item.id} style={cardAtendimento}>
-            <h3>{item.pacientes?.nome || 'Paciente não informado'}</h3>
+          <div key={item.id} style={card}>
+            <h3>
+              {item.servico}
+            </h3>
 
-            <p><strong>Profissional:</strong> {item.profissionais?.nome || '-'}</p>
-            <p><strong>Serviço:</strong> {item.servico}</p>
-            <p><strong>Data:</strong> {formatarData(item.data)} às {item.horario}</p>
-            <p><strong>Status:</strong> {item.status}</p>
-            <p><strong>Modalidade:</strong> {item.modalidade}</p>
-            <p><strong>Taxa deslocamento:</strong> {dinheiro(item.taxa_deslocamento)}</p>
+            <p>
+              <strong>Data:</strong> {item.data}
+            </p>
 
-            {item.link_video && (
-              <p>
-                <strong>Vídeo:</strong>{' '}
-                <a href={item.link_video} target="_blank">
-                  abrir link
+            <p>
+              <strong>Horário:</strong> {item.horario}
+            </p>
+
+            <p>
+              <strong>Profissional:</strong>{' '}
+              {item.profissionais?.nome}
+            </p>
+
+            <p>
+              <strong>Paciente:</strong>{' '}
+              {item.pacientes?.nome || 'Grupo'}
+            </p>
+
+            <p>
+              <strong>Tipo:</strong>{' '}
+              {item.tipo_atendimento}
+            </p>
+
+            <p>
+              <strong>Modalidade:</strong>{' '}
+              {item.modalidade}
+            </p>
+
+            <p>
+              <strong>Status:</strong>{' '}
+              {item.status}
+            </p>
+
+            <p>
+              <strong>Duração:</strong>{' '}
+              {item.duracao_horas}h
+            </p>
+
+            <p>
+              <strong>Valor hora profissional:</strong>{' '}
+              R$ {item.valor_hora_profissional}
+            </p>
+
+            <p>
+              <strong>Valor por paciente:</strong>{' '}
+              R$ {item.valor_por_paciente}
+            </p>
+
+            <div style={acoes}>
+              <button
+                onClick={() =>
+                  atualizarStatus(
+                    item.id,
+                    'Confirmado'
+                  )
+                }
+                style={botaoConfirmar}
+              >
+                Confirmar
+              </button>
+
+              <button
+                onClick={() =>
+                  atualizarStatus(
+                    item.id,
+                    'Realizado'
+                  )
+                }
+                style={botaoRealizado}
+              >
+                Realizado
+              </button>
+
+              <button
+                onClick={() =>
+                  abrirWhatsapp(item)
+                }
+                style={botaoWhatsapp}
+              >
+                WhatsApp
+              </button>
+
+              {item.link_videochamada && (
+                <a
+                  href={item.link_videochamada}
+                  target="_blank"
+                  style={botaoVideo}
+                >
+                  Videochamada
                 </a>
-              </p>
-            )}
-
-            <p><strong>Observações:</strong> {item.descricao}</p>
-
-            <button onClick={() => enviarWhatsApp(item)} style={botaoWhats}>
-              Confirmar por WhatsApp
-            </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -515,12 +633,19 @@ export default function Agenda() {
   )
 }
 
+const pagina = {
+  padding: 30,
+  fontFamily: 'Arial',
+  background: '#f5f7fb',
+  minHeight: '100vh'
+}
+
 const box = {
   background: '#fff',
   padding: 25,
   borderRadius: 16,
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 25
+  marginBottom: 25,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
 }
 
 const grid = {
@@ -529,72 +654,84 @@ const grid = {
   gap: 15
 }
 
+const grupoBox = {
+  marginTop: 25,
+  background: '#f8fafc',
+  padding: 20,
+  borderRadius: 14
+}
+
+const grupoLista = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr 1fr',
+  gap: 10,
+  marginTop: 15
+}
+
+const grupoItem = {
+  background: '#fff',
+  padding: 10,
+  borderRadius: 10,
+  border: '1px solid #ddd'
+}
+
+const card = {
+  background: '#f8fafc',
+  padding: 20,
+  borderRadius: 16,
+  marginTop: 15,
+  border: '1px solid #e5e7eb'
+}
+
+const acoes = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 15,
+  flexWrap: 'wrap'
+}
+
 const botaoPrincipal = {
-  gridColumn: '1 / span 2',
+  marginTop: 25,
   background: '#0f766e',
   color: '#fff',
   border: 'none',
   borderRadius: 10,
   padding: 14,
-  fontWeight: 'bold',
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
+
+const botaoConfirmar = {
+  background: '#2563eb',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  padding: 10,
   cursor: 'pointer'
 }
 
-const cardResumo = {
-  background: '#fff',
-  padding: 18,
-  borderRadius: 14,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
-  display: 'grid',
-  gap: 5
-}
-
-const cabecalho = {
-  padding: 10,
-  background: '#0f766e',
+const botaoRealizado = {
+  background: '#16a34a',
   color: '#fff',
-  fontWeight: 'bold',
-  textAlign: 'center',
-  border: '1px solid #0f766e'
+  border: 'none',
+  borderRadius: 10,
+  padding: 10,
+  cursor: 'pointer'
 }
 
-const celulaHora = {
-  padding: 8,
-  background: '#eef7f4',
-  fontWeight: 'bold',
-  border: '1px solid #ddd'
-}
-
-const celula = {
-  minHeight: 70,
-  padding: 6,
-  border: '1px solid #eee'
-}
-
-const evento = {
-  background: '#dff7ef',
-  borderLeft: '4px solid #0f766e',
-  padding: 8,
-  borderRadius: 8,
-  display: 'grid',
-  gap: 4,
-  fontSize: 12,
-  marginBottom: 6
-}
-
-const cardAtendimento = {
-  background: '#fff',
-  borderRadius: 16,
-  padding: 20,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
-}
-
-const botaoWhats = {
+const botaoWhatsapp = {
   background: '#22c55e',
   color: '#fff',
   border: 'none',
   borderRadius: 10,
   padding: 10,
-  fontWeight: 'bold',
   cursor: 'pointer'
+}
+
+const botaoVideo = {
+  background: '#7c3aed',
+  color: '#fff',
+  borderRadius: 10,
+  padding: 10,
+  textDecoration: 'none'
 }
