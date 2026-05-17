@@ -1,280 +1,327 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Prontuario() {
   const [pacientes, setPacientes] = useState([])
-  const [profissionais, setProfissionais] = useState([])
-  const [registros, setRegistros] = useState([])
-  const [busca, setBusca] = useState('')
-  const [aba, setAba] = useState('sessao')
-  const [arquivos, setArquivos] = useState([])
+  const [pacienteSelecionado, setPacienteSelecionado] = useState('')
+  const [dadosPaciente, setDadosPaciente] = useState(null)
+  const [historico, setHistorico] = useState([])
+  const [aba, setAba] = useState('anamnese')
 
   const [form, setForm] = useState({
-    paciente_id: '',
-    profissional_id: '',
     profissional_nome: '',
-    tipo_registro: 'Sessão',
-    tipo_reuniao: '',
-    participantes: '',
     servico: '',
     data_sessao: '',
+    permitir_ia: true,
+
+    queixa_principal: '',
+    historico_gestacional: '',
+    historico_parto: '',
+    desenvolvimento_motor: '',
+    desenvolvimento_linguagem: '',
+    sono: '',
+    alimentacao: '',
+    saude_geral: '',
+    escola_anamnese: '',
+    aprendizagem: '',
+    comportamento: '',
+    socializacao: '',
+    autonomia: '',
+    terapias: '',
+    rotina_familiar: '',
+    observacoes_anamnese: '',
+    relatorio_anamnese_ia: '',
+
     evolucao: '',
     conduta: '',
     resumo_familia: '',
     observacoes_internas: '',
+
+    tipo_reuniao: '',
+    participantes: '',
     encaminhamentos: '',
     metas: '',
-    indicadores_evolucao: '',
-    relatorio_grafico: '',
-    anamnese: '',
+
     plano_trimestral: '',
     plano_semestral: '',
     plano_anual: '',
-    liberar_familia: true,
-    permitir_ia: false
+    indicadores_evolucao: '',
+
+    relatorio_grafico: ''
   })
-
-  async function carregarDados() {
-    const { data: pacientesData } = await supabase
-      .from('pacientes')
-      .select('id, nome')
-      .order('nome')
-
-    const { data: profissionaisData } = await supabase
-      .from('profissionais')
-      .select('id, nome')
-      .order('nome')
-
-    const { data: prontuariosData, error } = await supabase
-      .from('prontuarios')
-      .select(`
-        *,
-        pacientes(nome),
-        profissionais(nome)
-      `)
-      .order('created_at', { ascending: false })
-
-    if (error) console.log(error)
-
-    setPacientes(pacientesData || [])
-    setProfissionais(profissionaisData || [])
-    setRegistros(prontuariosData || [])
-  }
-
-  useEffect(() => {
-    carregarDados()
-  }, [])
 
   function atualizarCampo(campo, valor) {
     setForm((prev) => ({ ...prev, [campo]: valor }))
   }
 
-  function selecionarArquivos(e) {
-    setArquivos(Array.from(e.target.files || []))
+  async function carregarPacientes() {
+    const { data } = await supabase
+      .from('pacientes')
+      .select('*')
+      .order('nome')
+
+    setPacientes(data || [])
   }
 
-  async function enviarAnexos(prontuarioId, pacienteId) {
-    if (!arquivos.length) return []
+  async function selecionarPaciente(id) {
+    setPacienteSelecionado(id)
 
-    const anexos = []
+    const { data } = await supabase
+      .from('pacientes')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    for (const arquivo of arquivos) {
-      const ext = arquivo.name.split('.').pop()
-      const caminho = `${pacienteId}/${prontuarioId}/${Date.now()}-${arquivo.name}`
+    setDadosPaciente(data || null)
+    carregarHistorico(id)
+  }
 
-      const { error } = await supabase.storage
-        .from('prontuario-documentos')
-        .upload(caminho, arquivo, {
-          cacheControl: '3600',
-          upsert: true
-        })
+  async function carregarHistorico(id) {
+    const { data } = await supabase
+      .from('prontuarios')
+      .select('*')
+      .eq('paciente_id', id)
+      .order('created_at', { ascending: false })
 
-      if (error) {
-        console.log(error)
-        continue
-      }
+    setHistorico(data || [])
+  }
 
-      const { data } = supabase.storage
-        .from('prontuario-documentos')
-        .getPublicUrl(caminho)
-
-      anexos.push({
-        prontuario_id: prontuarioId,
-        paciente_id: pacienteId,
-        nome_arquivo: arquivo.name,
-        tipo: ext,
-        url: data.publicUrl
-      })
+  function gerarRelatorioAnamneseIA() {
+    if (!form.permitir_ia) {
+      alert('Marque a opção Permitir IA para gerar o relatório.')
+      return
     }
 
-    if (anexos.length) {
-      await supabase.from('prontuario_anexos').insert(anexos)
-    }
+    const nome = dadosPaciente?.nome || 'Paciente'
 
-    return anexos
+    const texto = `
+RELATÓRIO ORGANIZADO DE ANAMNESE
+
+Paciente: ${nome}
+Data: ${new Date().toLocaleDateString('pt-BR')}
+
+1. QUEIXA PRINCIPAL
+${form.queixa_principal || 'Não informado.'}
+
+2. HISTÓRICO GESTACIONAL
+${form.historico_gestacional || 'Não informado.'}
+
+3. HISTÓRICO DO PARTO
+${form.historico_parto || 'Não informado.'}
+
+4. DESENVOLVIMENTO MOTOR
+${form.desenvolvimento_motor || 'Não informado.'}
+
+5. DESENVOLVIMENTO DA LINGUAGEM
+${form.desenvolvimento_linguagem || 'Não informado.'}
+
+6. SONO
+${form.sono || 'Não informado.'}
+
+7. ALIMENTAÇÃO
+${form.alimentacao || 'Não informado.'}
+
+8. SAÚDE GERAL
+${form.saude_geral || 'Não informado.'}
+
+9. ESCOLA
+${form.escola_anamnese || 'Não informado.'}
+
+10. APRENDIZAGEM
+${form.aprendizagem || 'Não informado.'}
+
+11. COMPORTAMENTO
+${form.comportamento || 'Não informado.'}
+
+12. SOCIALIZAÇÃO
+${form.socializacao || 'Não informado.'}
+
+13. AUTONOMIA
+${form.autonomia || 'Não informado.'}
+
+14. TERAPIAS ANTERIORES/ATUAIS
+${form.terapias || 'Não informado.'}
+
+15. ROTINA FAMILIAR
+${form.rotina_familiar || 'Não informado.'}
+
+16. OBSERVAÇÕES CLÍNICAS
+${form.observacoes_anamnese || 'Não informado.'}
+
+SÍNTESE CLÍNICA INICIAL
+Com base nas informações apresentadas, recomenda-se organizar o acompanhamento de forma interdisciplinar, considerando o desenvolvimento global, comunicação, aprendizagem, comportamento, autonomia, rotina familiar e contexto escolar. Os dados devem orientar a definição de metas terapêuticas, plano de intervenção e acompanhamento longitudinal.
+
+ENCAMINHAMENTOS SUGERIDOS
+- Definir objetivos terapêuticos iniciais.
+- Realizar acompanhamento sistemático da evolução.
+- Integrar família, escola e equipe terapêutica.
+- Registrar indicadores observáveis de progresso.
+- Reavaliar o plano periodicamente.
+`
+
+    atualizarCampo('relatorio_anamnese_ia', texto)
   }
 
   async function salvarProntuario() {
-    if (!form.paciente_id) {
-      alert('Selecione o paciente')
+    if (!pacienteSelecionado) {
+      alert('Selecione o paciente.')
       return
     }
 
     if (!form.resumo_familia?.trim()) {
-      alert('O resumo para família é obrigatório.')
+      alert('Resumo para família é obrigatório.')
       return
     }
 
-    const profissionalSelecionado = profissionais.find(
-      (p) => p.id === form.profissional_id
-    )
-
     const dados = {
+      paciente_id: pacienteSelecionado,
       ...form,
-      profissional_nome:
-        profissionalSelecionado?.nome ||
-        form.profissional_nome ||
-        '',
       data_sessao: form.data_sessao || null,
       liberar_familia: true
     }
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('prontuarios')
       .insert([dados])
-      .select()
 
     if (error) {
       console.log(error)
-      alert('Erro ao salvar prontuário')
+      alert('Erro ao salvar prontuário.')
       return
     }
 
-    const prontuarioCriado = data?.[0]
-
-    if (prontuarioCriado) {
-      await enviarAnexos(prontuarioCriado.id, form.paciente_id)
-    }
-
-    alert('Registro salvo com sucesso')
-
-    limparFormulario()
-    carregarDados()
-  }
-
-  function limparFormulario() {
-    setArquivos([])
+    alert('Prontuário salvo com sucesso.')
 
     setForm({
-      paciente_id: '',
-      profissional_id: '',
       profissional_nome: '',
-      tipo_registro: 'Sessão',
-      tipo_reuniao: '',
-      participantes: '',
       servico: '',
       data_sessao: '',
+      permitir_ia: true,
+
+      queixa_principal: '',
+      historico_gestacional: '',
+      historico_parto: '',
+      desenvolvimento_motor: '',
+      desenvolvimento_linguagem: '',
+      sono: '',
+      alimentacao: '',
+      saude_geral: '',
+      escola_anamnese: '',
+      aprendizagem: '',
+      comportamento: '',
+      socializacao: '',
+      autonomia: '',
+      terapias: '',
+      rotina_familiar: '',
+      observacoes_anamnese: '',
+      relatorio_anamnese_ia: '',
+
       evolucao: '',
       conduta: '',
       resumo_familia: '',
       observacoes_internas: '',
+
+      tipo_reuniao: '',
+      participantes: '',
       encaminhamentos: '',
       metas: '',
-      indicadores_evolucao: '',
-      relatorio_grafico: '',
-      anamnese: '',
+
       plano_trimestral: '',
       plano_semestral: '',
       plano_anual: '',
-      liberar_familia: true,
-      permitir_ia: false
+      indicadores_evolucao: '',
+
+      relatorio_grafico: ''
     })
+
+    carregarHistorico(pacienteSelecionado)
   }
 
-  function gerarTextoIA() {
-    if (!form.permitir_ia) {
-      alert('Marque "Permitir apoio da IA" primeiro.')
-      return
-    }
-
-    const sugestao = `
-Síntese estruturada:
-Paciente acompanhado em contexto interdisciplinar. Recomenda-se observar resposta à mediação, nível de autonomia, atenção sustentada, comunicação funcional, participação nas atividades, habilidades acadêmicas e regulação comportamental.
-
-Sugestões de acompanhamento:
-1. Manter objetivos terapêuticos graduais.
-2. Registrar evolução por sessão.
-3. Integrar família, escola e equipe.
-4. Definir indicadores mensuráveis de progresso.
-5. Reavaliar metas periodicamente.
-`
-
-    atualizarCampo(
-      'relatorio_grafico',
-      `${form.relatorio_grafico}\n\n${sugestao}`
-    )
-  }
-
-  const registrosFiltrados = useMemo(() => {
-    const texto = busca.toLowerCase()
-
-    return registros.filter((r) =>
-      r.pacientes?.nome?.toLowerCase().includes(texto) ||
-      r.servico?.toLowerCase().includes(texto) ||
-      r.tipo_registro?.toLowerCase().includes(texto)
-    )
-  }, [registros, busca])
+  useEffect(() => {
+    carregarPacientes()
+  }, [])
 
   return (
     <div style={pagina}>
-      <h1>Prontuário Clínico Integrado</h1>
+      <h1>Prontuário Integrado do Paciente</h1>
 
-      <p style={{ color: '#666', marginBottom: 30 }}>
-        Evolução, anamnese, reuniões, anexos, relatórios, planos de intervenção e resumo obrigatório para o App Família.
+      <p style={{ color: '#666' }}>
+        Anamnese completa, sessões, reuniões, planos, relatórios e resumo obrigatório para a família.
       </p>
 
+      <div style={box}>
+        <h2>Selecionar paciente</h2>
+
+        <select
+          value={pacienteSelecionado}
+          onChange={(e) => selecionarPaciente(e.target.value)}
+          style={input}
+        >
+          <option value="">Selecione o paciente</option>
+          {pacientes.map((p) => (
+            <option key={p.id} value={p.id}>{p.nome}</option>
+          ))}
+        </select>
+      </div>
+
+      {dadosPaciente && (
+        <div style={box}>
+          <h2>Dados do paciente</h2>
+
+          {dadosPaciente.foto_url && (
+            <img
+              src={dadosPaciente.foto_url}
+              alt={dadosPaciente.nome}
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: 18,
+                objectFit: 'cover'
+              }}
+            />
+          )}
+
+          <p><strong>Nome:</strong> {dadosPaciente.nome}</p>
+          <p><strong>Responsável:</strong> {dadosPaciente.responsavel}</p>
+          <p><strong>WhatsApp:</strong> {dadosPaciente.telefone}</p>
+          <p><strong>Escola:</strong> {dadosPaciente.escola}</p>
+          <p><strong>Série:</strong> {dadosPaciente.serie}</p>
+          <p><strong>Diagnóstico:</strong> {dadosPaciente.diagnostico}</p>
+          <p><strong>Observações:</strong> {dadosPaciente.observacoes}</p>
+        </div>
+      )}
+
       <div style={abas}>
-        <button onClick={() => setAba('sessao')} style={aba === 'sessao' ? abaAtiva : abaBotao}>Sessão</button>
-        <button onClick={() => setAba('anamnese')} style={aba === 'anamnese' ? abaAtiva : abaBotao}>Anamnese</button>
-        <button onClick={() => setAba('reuniao')} style={aba === 'reuniao' ? abaAtiva : abaBotao}>Reuniões</button>
-        <button onClick={() => setAba('planos')} style={aba === 'planos' ? abaAtiva : abaBotao}>Planos</button>
-        <button onClick={() => setAba('relatorios')} style={aba === 'relatorios' ? abaAtiva : abaBotao}>Relatórios</button>
-        <button onClick={() => setAba('anexos')} style={aba === 'anexos' ? abaAtiva : abaBotao}>Anexos</button>
+        {['anamnese', 'sessao', 'reuniao', 'planos', 'relatorios'].map((item) => (
+          <button
+            key={item}
+            onClick={() => setAba(item)}
+            style={aba === item ? abaAtiva : abaBotao}
+          >
+            {item === 'anamnese' && 'Anamnese'}
+            {item === 'sessao' && 'Sessão'}
+            {item === 'reuniao' && 'Reuniões'}
+            {item === 'planos' && 'Planos'}
+            {item === 'relatorios' && 'Relatórios'}
+          </button>
+        ))}
       </div>
 
       <div style={box}>
         <h2>Novo registro</h2>
 
         <div style={grid}>
-          <select
-            value={form.paciente_id}
-            onChange={(e) => atualizarCampo('paciente_id', e.target.value)}
-          >
-            <option value="">Selecione o paciente</option>
-            {pacientes.map((p) => (
-              <option key={p.id} value={p.id}>{p.nome}</option>
-            ))}
-          </select>
-
-          <select
-            value={form.profissional_id}
-            onChange={(e) => atualizarCampo('profissional_id', e.target.value)}
-          >
-            <option value="">Profissional que realizou o atendimento</option>
-            {profissionais.map((p) => (
-              <option key={p.id} value={p.id}>{p.nome}</option>
-            ))}
-          </select>
-
           <input
-            type="date"
-            value={form.data_sessao}
-            onChange={(e) => atualizarCampo('data_sessao', e.target.value)}
+            placeholder="Profissional que realizou o atendimento"
+            value={form.profissional_nome}
+            onChange={(e) => atualizarCampo('profissional_nome', e.target.value)}
+            style={input}
           />
 
           <select
             value={form.servico}
             onChange={(e) => atualizarCampo('servico', e.target.value)}
+            style={input}
           >
             <option value="">Serviço/Terapia</option>
             <option>Fonoaudiologia</option>
@@ -285,63 +332,87 @@ Sugestões de acompanhamento:
             <option>Nutrição</option>
             <option>Acompanhamento Pedagógico</option>
             <option>Avaliação Neuropsicológica</option>
-            <option>Mapeamento Cerebral</option>
-            <option>Neuromodulação</option>
             <option>Reunião</option>
           </select>
+
+          <input
+            type="date"
+            value={form.data_sessao}
+            onChange={(e) => atualizarCampo('data_sessao', e.target.value)}
+            style={input}
+          />
         </div>
 
+        <label style={{ display: 'block', marginTop: 15 }}>
+          <input
+            type="checkbox"
+            checked={form.permitir_ia}
+            onChange={(e) => atualizarCampo('permitir_ia', e.target.checked)}
+          />{' '}
+          Permitir IA neste registro
+        </label>
+
+        {aba === 'anamnese' && (
+          <>
+            <h3>Anamnese profissional completa</h3>
+
+            <div style={grid}>
+              <Campo titulo="Queixa principal" campo="queixa_principal" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Histórico gestacional" campo="historico_gestacional" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Histórico do parto" campo="historico_parto" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Desenvolvimento motor" campo="desenvolvimento_motor" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Desenvolvimento da linguagem" campo="desenvolvimento_linguagem" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Sono" campo="sono" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Alimentação" campo="alimentacao" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Saúde geral" campo="saude_geral" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Escola" campo="escola_anamnese" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Aprendizagem" campo="aprendizagem" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Comportamento" campo="comportamento" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Socialização" campo="socializacao" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Autonomia" campo="autonomia" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Terapias anteriores/atuais" campo="terapias" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Rotina familiar" campo="rotina_familiar" form={form} atualizarCampo={atualizarCampo} />
+              <Campo titulo="Observações clínicas" campo="observacoes_anamnese" form={form} atualizarCampo={atualizarCampo} />
+            </div>
+
+            <button onClick={gerarRelatorioAnamneseIA} style={botaoIA}>
+              Gerar relatório da anamnese com IA
+            </button>
+
+            <textarea
+              placeholder="Relatório completo da anamnese gerado com apoio de IA"
+              value={form.relatorio_anamnese_ia}
+              onChange={(e) => atualizarCampo('relatorio_anamnese_ia', e.target.value)}
+              style={textareaGrande}
+            />
+          </>
+        )}
+
         {aba === 'sessao' && (
-          <div style={gridTextos}>
+          <>
             <textarea
               placeholder="Evolução clínica da sessão"
               value={form.evolucao}
               onChange={(e) => atualizarCampo('evolucao', e.target.value)}
+              style={textarea}
             />
 
             <textarea
               placeholder="Conduta / intervenção realizada"
               value={form.conduta}
               onChange={(e) => atualizarCampo('conduta', e.target.value)}
+              style={textarea}
             />
-
-            <div>
-              <label style={labelResumo}>
-                Resumo para família *
-              </label>
-
-              <textarea
-                placeholder="Descreva de forma clara, acolhedora e objetiva como foi a sessão, avanços observados, dificuldades percebidas e orientações importantes para a família."
-                value={form.resumo_familia}
-                onChange={(e) => atualizarCampo('resumo_familia', e.target.value)}
-                style={textareaResumo}
-              />
-
-              <p style={avisoFamilia}>
-                Este conteúdo ficará disponível automaticamente no App Família.
-              </p>
-            </div>
-
-            <textarea
-              placeholder="Observações internas protegidas"
-              value={form.observacoes_internas}
-              onChange={(e) => atualizarCampo('observacoes_internas', e.target.value)}
-            />
-          </div>
-        )}
-
-        {aba === 'anamnese' && (
-          <textarea
-            style={textareaGrande}
-            placeholder="Anamnese completa: queixa principal, histórico gestacional, desenvolvimento neuropsicomotor, linguagem, alimentação, sono, comportamento, escola, socialização, terapias anteriores, medicamentos, rotina, família, autonomia e observações relevantes."
-            value={form.anamnese}
-            onChange={(e) => atualizarCampo('anamnese', e.target.value)}
-          />
+          </>
         )}
 
         {aba === 'reuniao' && (
-          <div style={gridTextos}>
-            <select value={form.tipo_reuniao} onChange={(e) => atualizarCampo('tipo_reuniao', e.target.value)}>
+          <>
+            <select
+              value={form.tipo_reuniao}
+              onChange={(e) => atualizarCampo('tipo_reuniao', e.target.value)}
+              style={input}
+            >
               <option value="">Tipo de reunião</option>
               <option>Família</option>
               <option>Escola</option>
@@ -349,99 +420,82 @@ Sugestões de acompanhamento:
               <option>Todos</option>
             </select>
 
-            <textarea placeholder="Participantes" value={form.participantes} onChange={(e) => atualizarCampo('participantes', e.target.value)} />
-            <textarea placeholder="Pontos discutidos / encaminhamentos" value={form.encaminhamentos} onChange={(e) => atualizarCampo('encaminhamentos', e.target.value)} />
-            <textarea placeholder="Metas combinadas" value={form.metas} onChange={(e) => atualizarCampo('metas', e.target.value)} />
-          </div>
+            <textarea placeholder="Participantes" value={form.participantes} onChange={(e) => atualizarCampo('participantes', e.target.value)} style={textarea} />
+            <textarea placeholder="Encaminhamentos" value={form.encaminhamentos} onChange={(e) => atualizarCampo('encaminhamentos', e.target.value)} style={textarea} />
+            <textarea placeholder="Metas combinadas" value={form.metas} onChange={(e) => atualizarCampo('metas', e.target.value)} style={textarea} />
+          </>
         )}
 
         {aba === 'planos' && (
-          <div style={gridTextos}>
-            <textarea placeholder="Plano trimestral" value={form.plano_trimestral} onChange={(e) => atualizarCampo('plano_trimestral', e.target.value)} />
-            <textarea placeholder="Plano semestral" value={form.plano_semestral} onChange={(e) => atualizarCampo('plano_semestral', e.target.value)} />
-            <textarea placeholder="Plano anual" value={form.plano_anual} onChange={(e) => atualizarCampo('plano_anual', e.target.value)} />
-            <textarea placeholder="Indicadores de evolução" value={form.indicadores_evolucao} onChange={(e) => atualizarCampo('indicadores_evolucao', e.target.value)} />
-          </div>
+          <>
+            <textarea placeholder="Plano trimestral" value={form.plano_trimestral} onChange={(e) => atualizarCampo('plano_trimestral', e.target.value)} style={textarea} />
+            <textarea placeholder="Plano semestral" value={form.plano_semestral} onChange={(e) => atualizarCampo('plano_semestral', e.target.value)} style={textarea} />
+            <textarea placeholder="Plano anual" value={form.plano_anual} onChange={(e) => atualizarCampo('plano_anual', e.target.value)} style={textarea} />
+            <textarea placeholder="Indicadores de evolução" value={form.indicadores_evolucao} onChange={(e) => atualizarCampo('indicadores_evolucao', e.target.value)} style={textarea} />
+          </>
         )}
 
         {aba === 'relatorios' && (
-          <div>
-            <textarea
-              style={textareaGrande}
-              placeholder="Campo para relatório clínico, evolução, gráficos e análise longitudinal."
-              value={form.relatorio_grafico}
-              onChange={(e) => atualizarCampo('relatorio_grafico', e.target.value)}
-            />
-
-            <button onClick={gerarTextoIA} style={botaoIA}>
-              Gerar apoio textual com IA
-            </button>
-          </div>
+          <textarea
+            placeholder="Relatórios clínicos, gráficos, evolução e análise longitudinal"
+            value={form.relatorio_grafico}
+            onChange={(e) => atualizarCampo('relatorio_grafico', e.target.value)}
+            style={textareaGrande}
+          />
         )}
 
-        {aba === 'anexos' && (
-          <div style={{ marginTop: 20 }}>
-            <input type="file" multiple onChange={selecionarArquivos} />
+        <h3>Resumo obrigatório para família</h3>
 
-            <p style={{ color: '#666' }}>
-              Anexe laudos, relatórios, avaliações, documentos escolares, imagens ou PDFs.
-            </p>
-          </div>
-        )}
+        <textarea
+          placeholder="Resumo claro e acolhedor para o App Família"
+          value={form.resumo_familia}
+          onChange={(e) => atualizarCampo('resumo_familia', e.target.value)}
+          style={{
+            ...textarea,
+            border: '2px solid #0f766e'
+          }}
+        />
 
-        <div style={checks}>
-          <label>
-            <input
-              type="checkbox"
-              checked={form.liberar_familia}
-              onChange={(e) => atualizarCampo('liberar_familia', e.target.checked)}
-            />
-            Liberar resumo para App Família
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={form.permitir_ia}
-              onChange={(e) => atualizarCampo('permitir_ia', e.target.checked)}
-            />
-            Permitir apoio da IA neste registro
-          </label>
-        </div>
+        <textarea
+          placeholder="Observações internas protegidas"
+          value={form.observacoes_internas}
+          onChange={(e) => atualizarCampo('observacoes_internas', e.target.value)}
+          style={textarea}
+        />
 
         <button onClick={salvarProntuario} style={botaoPrincipal}>
-          Salvar registro no prontuário
+          Salvar prontuário
         </button>
       </div>
 
       <div style={box}>
-        <h2>Buscar registros</h2>
+        <h2>Histórico completo do paciente</h2>
 
-        <input
-          placeholder="Buscar por paciente, serviço ou tipo de registro"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          style={inputBusca}
-        />
-      </div>
-
-      <h2>Registros do prontuário</h2>
-
-      <div style={{ display: 'grid', gap: 15 }}>
-        {registrosFiltrados.map((r) => (
-          <div key={r.id} style={card}>
-            <h3>{r.pacientes?.nome || 'Paciente não informado'}</h3>
-            <p><strong>Profissional:</strong> {r.profissionais?.nome || r.profissional_nome || '-'}</p>
-            <p><strong>Data:</strong> {r.data_sessao || '-'}</p>
-            <p><strong>Serviço:</strong> {r.servico || '-'}</p>
-            <p><strong>Tipo:</strong> {r.tipo_registro || 'Sessão'}</p>
-            <p><strong>Evolução:</strong> {r.evolucao || '-'}</p>
-            <p><strong>Resumo família:</strong> {r.resumo_familia || '-'}</p>
-            <p><strong>IA permitida:</strong> {r.permitir_ia ? 'Sim' : 'Não'}</p>
-            <p><strong>Liberado família:</strong> {r.liberar_familia ? 'Sim' : 'Não'}</p>
+        {historico.map((item) => (
+          <div key={item.id} style={card}>
+            <p><strong>Data:</strong> {item.data_sessao || '-'}</p>
+            <p><strong>Profissional:</strong> {item.profissional_nome || '-'}</p>
+            <p><strong>Serviço:</strong> {item.servico || '-'}</p>
+            <p><strong>Queixa principal:</strong> {item.queixa_principal || '-'}</p>
+            <p><strong>Evolução:</strong> {item.evolucao || '-'}</p>
+            <p><strong>Resumo família:</strong> {item.resumo_familia || '-'}</p>
+            <p><strong>Relatório IA:</strong> {item.relatorio_anamnese_ia || '-'}</p>
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function Campo({ titulo, campo, form, atualizarCampo }) {
+  return (
+    <div>
+      <label style={{ fontWeight: 'bold' }}>{titulo}</label>
+      <textarea
+        value={form[campo]}
+        onChange={(e) => atualizarCampo(campo, e.target.value)}
+        style={textarea}
+      />
     </div>
   )
 }
@@ -453,11 +507,50 @@ const pagina = {
   minHeight: '100vh'
 }
 
+const box = {
+  background: '#fff',
+  padding: 25,
+  borderRadius: 16,
+  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+  marginBottom: 25
+}
+
+const grid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 15
+}
+
+const input = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 10,
+  border: '1px solid #ccc'
+}
+
+const textarea = {
+  width: '100%',
+  minHeight: 100,
+  padding: 12,
+  borderRadius: 10,
+  border: '1px solid #ccc',
+  marginTop: 10
+}
+
+const textareaGrande = {
+  width: '100%',
+  minHeight: 250,
+  padding: 12,
+  borderRadius: 10,
+  border: '1px solid #ccc',
+  marginTop: 15
+}
+
 const abas = {
   display: 'flex',
   gap: 10,
-  flexWrap: 'wrap',
-  marginBottom: 20
+  marginBottom: 20,
+  flexWrap: 'wrap'
 }
 
 const abaBotao = {
@@ -474,67 +567,8 @@ const abaAtiva = {
   color: '#fff'
 }
 
-const box = {
-  background: '#fff',
-  padding: 25,
-  borderRadius: 16,
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 25
-}
-
-const grid = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 15,
-  marginBottom: 20
-}
-
-const gridTextos = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 15,
-  marginTop: 20
-}
-
-const labelResumo = {
-  display: 'block',
-  marginBottom: 8,
-  fontWeight: 'bold',
-  color: '#0f766e'
-}
-
-const textareaResumo = {
-  width: '100%',
-  minHeight: 160,
-  padding: 14,
-  borderRadius: 10,
-  border: '2px solid #0f766e'
-}
-
-const avisoFamilia = {
-  color: '#666',
-  fontSize: 13,
-  marginTop: 8
-}
-
-const textareaGrande = {
-  width: '100%',
-  minHeight: 260,
-  padding: 14,
-  borderRadius: 10,
-  border: '1px solid #ccc',
-  marginTop: 20
-}
-
-const checks = {
-  display: 'flex',
-  gap: 25,
-  flexWrap: 'wrap',
-  marginTop: 25,
-  marginBottom: 20
-}
-
 const botaoPrincipal = {
+  marginTop: 20,
   background: '#0f766e',
   color: '#fff',
   border: 'none',
@@ -545,26 +579,20 @@ const botaoPrincipal = {
 }
 
 const botaoIA = {
-  marginTop: 15,
+  marginTop: 20,
   background: '#7c3aed',
   color: '#fff',
   border: 'none',
   borderRadius: 10,
-  padding: 12,
+  padding: 14,
   cursor: 'pointer',
   fontWeight: 'bold'
 }
 
-const inputBusca = {
-  width: '100%',
-  padding: 14,
-  borderRadius: 10,
-  border: '1px solid #ccc'
-}
-
 const card = {
-  background: '#fff',
-  borderRadius: 16,
-  padding: 20,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+  background: '#f8fafc',
+  borderRadius: 14,
+  padding: 18,
+  marginTop: 15,
+  border: '1px solid #e5e7eb'
 }
