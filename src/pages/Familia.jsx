@@ -22,6 +22,7 @@ export default function Familia() {
   const [paciente, setPaciente] = useState(null)
   const [agenda, setAgenda] = useState([])
   const [prontuarios, setProntuarios] = useState([])
+  const [anexos, setAnexos] = useState([])
   const [financeiro, setFinanceiro] = useState([])
   const [aba, setAba] = useState('inicio')
 
@@ -56,10 +57,17 @@ export default function Familia() {
       .eq('paciente_id', usuario.id)
       .order('vencimento', { ascending: false })
 
+    const { data: anexosData } = await supabase
+      .from('prontuario_anexos')
+      .select('*')
+      .eq('paciente_id', usuario.id)
+      .order('created_at', { ascending: false })
+
     setPaciente(pacienteData || usuario)
     setAgenda(agendaData || [])
     setProntuarios(prontuarioData || [])
     setFinanceiro(financeiroData || [])
+    setAnexos(anexosData || [])
   }
 
   useEffect(() => {
@@ -72,11 +80,37 @@ export default function Familia() {
       .reduce((soma, item) => soma + Number(item.valor || 0), 0)
   }, [financeiro])
 
+  const proximosAtendimentos = useMemo(() => {
+    const hoje = new Date().toISOString().slice(0, 10)
+
+    return agenda.filter((item) => item.data >= hoje)
+  }, [agenda])
+
   function sair() {
     localStorage.removeItem('em_session')
     localStorage.removeItem('usuario')
     localStorage.removeItem('tipo_usuario')
     navigate('/')
+  }
+
+  async function confirmarPresenca(item) {
+    const { error } = await supabase
+      .from('agenda')
+      .update({
+        confirmado_familia: true,
+        data_confirmacao_familia: new Date().toISOString(),
+        status: item.status === 'Agendado' ? 'Confirmado' : item.status
+      })
+      .eq('id', item.id)
+
+    if (error) {
+      console.log(error)
+      alert('Erro ao confirmar presença.')
+      return
+    }
+
+    alert('Presença confirmada com sucesso.')
+    carregarDados()
   }
 
   function abrirWhatsAppClinica() {
@@ -94,7 +128,7 @@ export default function Familia() {
         <div>
           <h1>App Família</h1>
           <p style={{ color: '#666' }}>
-            Acompanhamento de agenda, resumos e financeiro.
+            Acompanhe agenda, resumos, documentos e financeiro do paciente.
           </p>
         </div>
 
@@ -122,23 +156,75 @@ export default function Familia() {
       )}
 
       <div style={abas}>
-        <button onClick={() => setAba('inicio')} style={aba === 'inicio' ? abaAtiva : abaBotao}>Início</button>
-        <button onClick={() => setAba('agenda')} style={aba === 'agenda' ? abaAtiva : abaBotao}>Agenda</button>
-        <button onClick={() => setAba('resumos')} style={aba === 'resumos' ? abaAtiva : abaBotao}>Resumos</button>
-        <button onClick={() => setAba('financeiro')} style={aba === 'financeiro' ? abaAtiva : abaBotao}>Financeiro</button>
+        <button onClick={() => setAba('inicio')} style={aba === 'inicio' ? abaAtiva : abaBotao}>
+          Início
+        </button>
+
+        <button onClick={() => setAba('agenda')} style={aba === 'agenda' ? abaAtiva : abaBotao}>
+          Agenda
+        </button>
+
+        <button onClick={() => setAba('resumos')} style={aba === 'resumos' ? abaAtiva : abaBotao}>
+          Resumos
+        </button>
+
+        <button onClick={() => setAba('documentos')} style={aba === 'documentos' ? abaAtiva : abaBotao}>
+          Documentos
+        </button>
+
+        <button onClick={() => setAba('financeiro')} style={aba === 'financeiro' ? abaAtiva : abaBotao}>
+          Financeiro
+        </button>
       </div>
 
       {aba === 'inicio' && (
-        <div style={cards}>
-          <Resumo titulo="Atendimentos agendados" valor={agenda.length} />
-          <Resumo titulo="Resumos disponíveis" valor={prontuarios.length} />
-          <Resumo titulo="Financeiro pendente" valor={dinheiro(totalPendente)} />
+        <div>
+          <div style={cards}>
+            <Resumo titulo="Próximos atendimentos" valor={proximosAtendimentos.length} />
+            <Resumo titulo="Resumos disponíveis" valor={prontuarios.length} />
+            <Resumo titulo="Documentos disponíveis" valor={anexos.length} />
+            <Resumo titulo="Financeiro pendente" valor={dinheiro(totalPendente)} />
+          </div>
+
+          <div style={box}>
+            <h2>Próximo atendimento</h2>
+
+            {proximosAtendimentos.length === 0 && (
+              <p>Nenhum atendimento futuro agendado.</p>
+            )}
+
+            {proximosAtendimentos.slice(0, 2).map((item) => (
+              <div key={item.id} style={card}>
+                <h3>{item.servico || 'Atendimento'}</h3>
+                <p><strong>Data:</strong> {dataBR(item.data)}</p>
+                <p><strong>Horário:</strong> {item.horario || '-'}</p>
+                <p><strong>Profissional:</strong> {item.profissionais?.nome || '-'}</p>
+                <p><strong>Status:</strong> {item.status || '-'}</p>
+
+                <div style={acoes}>
+                  {!item.confirmado_familia && (
+                    <button onClick={() => confirmarPresenca(item)} style={botaoConfirmar}>
+                      Confirmar presença
+                    </button>
+                  )}
+
+                  {item.confirmado_familia && (
+                    <span style={seloConfirmado}>Presença confirmada</span>
+                  )}
+
+                  {item.link_videochamada && (
+                    <a href={item.link_videochamada} target="_blank" style={botaoVideo}>
+                      Videochamada
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
 
           <div style={box}>
             <h2>Contato com a clínica</h2>
-            <p>
-              Use este botão para falar diretamente com o Espaço Montessoriano.
-            </p>
+            <p>Use este botão para falar diretamente com o Espaço Montessoriano.</p>
 
             <button onClick={abrirWhatsAppClinica} style={botaoWhats}>
               Falar no WhatsApp
@@ -158,17 +244,31 @@ export default function Familia() {
           {agenda.map((item) => (
             <div key={item.id} style={card}>
               <h3>{item.servico || 'Atendimento'}</h3>
+
               <p><strong>Data:</strong> {dataBR(item.data)}</p>
-              <p><strong>Horário:</strong> {item.horario || '-'}</p>
+              <p><strong>Horário:</strong> {item.horario || '-'} até {item.hora_fim || '-'}</p>
               <p><strong>Profissional:</strong> {item.profissionais?.nome || '-'}</p>
               <p><strong>Modalidade:</strong> {item.modalidade || '-'}</p>
               <p><strong>Status:</strong> {item.status || '-'}</p>
+              <p><strong>Sala:</strong> {item.sala || '-'}</p>
 
-              {item.link_videochamada && (
-                <a href={item.link_videochamada} target="_blank" style={botaoVideo}>
-                  Acessar videochamada
-                </a>
-              )}
+              <div style={acoes}>
+                {!item.confirmado_familia && (
+                  <button onClick={() => confirmarPresenca(item)} style={botaoConfirmar}>
+                    Confirmar presença
+                  </button>
+                )}
+
+                {item.confirmado_familia && (
+                  <span style={seloConfirmado}>Presença confirmada</span>
+                )}
+
+                {item.link_videochamada && (
+                  <a href={item.link_videochamada} target="_blank" style={botaoVideo}>
+                    Acessar videochamada
+                  </a>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -190,6 +290,28 @@ export default function Familia() {
 
               <h4>Resumo para família</h4>
               <p>{item.resumo_familia || '-'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {aba === 'documentos' && (
+        <div style={box}>
+          <h2>Documentos e anexos liberados</h2>
+
+          {anexos.length === 0 && (
+            <p>Nenhum documento disponível até o momento.</p>
+          )}
+
+          {anexos.map((item) => (
+            <div key={item.id} style={card}>
+              <h3>{item.nome_arquivo || 'Documento'}</h3>
+              <p><strong>Categoria:</strong> {item.categoria || '-'}</p>
+              <p><strong>Data:</strong> {dataBR(String(item.created_at || '').slice(0, 10))}</p>
+
+              <a href={item.url} target="_blank" style={botaoDocumento}>
+                Abrir documento
+              </a>
             </div>
           ))}
         </div>
@@ -241,7 +363,8 @@ const cabecalho = {
   justifyContent: 'space-between',
   gap: 20,
   alignItems: 'center',
-  marginBottom: 25
+  marginBottom: 25,
+  flexWrap: 'wrap'
 }
 
 const boxPerfil = {
@@ -252,7 +375,8 @@ const boxPerfil = {
   gap: 20,
   alignItems: 'center',
   boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 25
+  marginBottom: 25,
+  flexWrap: 'wrap'
 }
 
 const foto = {
@@ -298,8 +422,9 @@ const abaAtiva = {
 
 const cards = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(3, 1fr)',
-  gap: 15
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 15,
+  marginBottom: 20
 }
 
 const box = {
@@ -316,6 +441,14 @@ const card = {
   padding: 18,
   borderRadius: 14,
   marginTop: 15
+}
+
+const acoes = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap',
+  marginTop: 12,
+  alignItems: 'center'
 }
 
 const botaoSair = {
@@ -338,9 +471,37 @@ const botaoWhats = {
   fontWeight: 'bold'
 }
 
+const botaoConfirmar = {
+  background: '#0f766e',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: 12,
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
+
+const seloConfirmado = {
+  background: '#dcfce7',
+  color: '#166534',
+  padding: 10,
+  borderRadius: 12,
+  fontWeight: 'bold'
+}
+
 const botaoVideo = {
   display: 'inline-block',
   background: '#7c3aed',
+  color: '#fff',
+  borderRadius: 12,
+  padding: 12,
+  textDecoration: 'none',
+  fontWeight: 'bold'
+}
+
+const botaoDocumento = {
+  display: 'inline-block',
+  background: '#2563eb',
   color: '#fff',
   borderRadius: 12,
   padding: 12,
