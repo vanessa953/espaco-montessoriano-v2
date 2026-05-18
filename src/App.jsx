@@ -17,35 +17,11 @@ function getUsuario() {
   }
 }
 
-function Protegida({ children, permitido = [] }) {
+function Protegida({ children }) {
   const logado = localStorage.getItem('em_session') === 'ativo'
-  const tipo = localStorage.getItem('tipo_usuario')
-  const usuario = getUsuario()
 
   if (!logado) {
-    window.location.href = '/'
-    return null
-  }
-
-  if (tipo === 'familia') {
-    if (permitido.includes('Família')) {
-      return <Layout>{children}</Layout>
-    }
-
-    window.location.href = '/familia'
-    return null
-  }
-
-  const nivel = usuario?.nivel_acesso || 'Colaborador'
-
-  const autorizado =
-    permitido.length === 0 ||
-    permitido.includes(nivel) ||
-    nivel === 'Administradora'
-
-  if (!autorizado) {
-    window.location.href = '/dashboard'
-    return null
+    return <Login />
   }
 
   return <Layout>{children}</Layout>
@@ -53,39 +29,24 @@ function Protegida({ children, permitido = [] }) {
 
 export default function App() {
   const path = window.location.pathname
+  const usuario = getUsuario()
+  const tipo = localStorage.getItem('tipo_usuario')
 
   if (path === '/') {
     return <Login />
   }
 
-  if (path === '/dashboard') {
+  if (path === '/familia') {
     return (
-      <Protegida permitido={[
-        'Administradora',
-        'Coordenação',
-        'Auxiliar ADM',
-        'Recepção',
-        'Financeiro',
-        'Supervisor',
-        'Colaborador',
-        'Estagiário'
-      ]}>
-        <Dashboard />
+      <Protegida>
+        <Familia />
       </Protegida>
     )
   }
 
   if (path === '/pacientes') {
     return (
-      <Protegida permitido={[
-        'Administradora',
-        'Coordenação',
-        'Auxiliar ADM',
-        'Recepção',
-        'Supervisor',
-        'Colaborador',
-        'Estagiário'
-      ]}>
+      <Protegida>
         <Pacientes />
       </Protegida>
     )
@@ -93,15 +54,7 @@ export default function App() {
 
   if (path === '/agenda') {
     return (
-      <Protegida permitido={[
-        'Administradora',
-        'Coordenação',
-        'Auxiliar ADM',
-        'Recepção',
-        'Supervisor',
-        'Colaborador',
-        'Estagiário'
-      ]}>
+      <Protegida>
         <Agenda />
       </Protegida>
     )
@@ -109,12 +62,7 @@ export default function App() {
 
   if (path === '/prontuario') {
     return (
-      <Protegida permitido={[
-        'Administradora',
-        'Coordenação',
-        'Supervisor',
-        'Colaborador'
-      ]}>
+      <Protegida>
         <Prontuario />
       </Protegida>
     )
@@ -122,10 +70,7 @@ export default function App() {
 
   if (path === '/financeiro') {
     return (
-      <Protegida permitido={[
-        'Administradora',
-        'Financeiro'
-      ]}>
+      <Protegida>
         <Financeiro />
       </Protegida>
     )
@@ -133,10 +78,7 @@ export default function App() {
 
   if (path === '/profissionais') {
     return (
-      <Protegida permitido={[
-        'Administradora',
-        'Coordenação'
-      ]}>
+      <Protegida>
         <Profissionais />
       </Protegida>
     )
@@ -144,25 +86,23 @@ export default function App() {
 
   if (path === '/configuracoes') {
     return (
-      <Protegida permitido={[
-        'Administradora'
-      ]}>
+      <Protegida>
         <Configuracoes />
       </Protegida>
     )
   }
 
-  if (path === '/familia') {
+  if (tipo === 'familia') {
     return (
-      <Protegida permitido={[
-        'Família',
-        'Administradora'
-      ]}>
+      <Protegida>
         <Familia />
       </Protegida>
     )
   }
 
-  window.location.href = '/'
-  return null
+  return (
+    <Protegida>
+      <Dashboard />
+    </Protegida>
+  )
 }
