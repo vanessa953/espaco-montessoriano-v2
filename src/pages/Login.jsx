@@ -8,9 +8,52 @@ export default function Login() {
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [carregando, setCarregando] = useState(false)
 
+  async function buscarProfissional(loginLimpo, senhaLimpa) {
+    let resultado = await supabase
+      .from('profissionais')
+      .select('*')
+      .eq('login_app', loginLimpo)
+      .eq('senha_app', senhaLimpa)
+      .maybeSingle()
+
+    if (resultado.data) return resultado
+
+    resultado = await supabase
+      .from('profissionais')
+      .select('*')
+      .eq('email', loginLimpo)
+      .eq('senha_app', senhaLimpa)
+      .maybeSingle()
+
+    return resultado
+  }
+
+  async function buscarFamilia(loginLimpo, senhaLimpa) {
+    let resultado = await supabase
+      .from('pacientes')
+      .select('*')
+      .eq('login_familia', loginLimpo)
+      .eq('senha_familia', senhaLimpa)
+      .maybeSingle()
+
+    if (resultado.data) return resultado
+
+    resultado = await supabase
+      .from('pacientes')
+      .select('*')
+      .eq('email', loginLimpo)
+      .eq('senha_familia', senhaLimpa)
+      .maybeSingle()
+
+    return resultado
+  }
+
   async function entrar() {
-    if (!login || !senha) {
-      alert('Preencha login e senha')
+    const loginLimpo = login.trim()
+    const senhaLimpa = senha.trim()
+
+    if (!loginLimpo || !senhaLimpa) {
+      alert('Preencha login e senha.')
       return
     }
 
@@ -18,48 +61,60 @@ export default function Login() {
 
     try {
       if (tipoAcesso === 'profissional') {
-        const { data, error } = await supabase
-          .from('profissionais')
-          .select('*')
-          .eq('login_app', login)
-          .eq('senha_app', senha)
-          .maybeSingle()
+        const { data, error } = await buscarProfissional(loginLimpo, senhaLimpa)
 
-        if (error || !data) {
-          alert('Login inválido')
+        if (error) {
+          console.log('Erro Supabase profissional:', error)
+          alert('Erro ao consultar profissional. Veja o console.')
           setCarregando(false)
           return
         }
 
+        if (!data) {
+          alert('Login ou senha do profissional inválidos.')
+          setCarregando(false)
+          return
+        }
+
+        if (data.ativo === false) {
+          alert('Usuário profissional inativo.')
+          setCarregando(false)
+          return
+        }
+
+        localStorage.clear()
         localStorage.setItem('em_session', 'ativo')
-        localStorage.setItem('usuario', JSON.stringify(data))
         localStorage.setItem('tipo_usuario', 'profissional')
+        localStorage.setItem('usuario', JSON.stringify(data))
 
         window.location.href = '/dashboard'
         return
       }
 
-      const { data, error } = await supabase
-        .from('pacientes')
-        .select('*')
-        .eq('login_familia', login)
-        .eq('senha_familia', senha)
-        .maybeSingle()
+      const { data, error } = await buscarFamilia(loginLimpo, senhaLimpa)
 
-      if (error || !data) {
-        alert('Login inválido')
+      if (error) {
+        console.log('Erro Supabase família:', error)
+        alert('Erro ao consultar família. Veja o console.')
         setCarregando(false)
         return
       }
 
+      if (!data) {
+        alert('Login ou senha da família inválidos.')
+        setCarregando(false)
+        return
+      }
+
+      localStorage.clear()
       localStorage.setItem('em_session', 'ativo')
-      localStorage.setItem('usuario', JSON.stringify(data))
       localStorage.setItem('tipo_usuario', 'familia')
+      localStorage.setItem('usuario', JSON.stringify(data))
 
       window.location.href = '/familia'
     } catch (err) {
-      console.log(err)
-      alert('Erro ao entrar')
+      console.log('Erro geral login:', err)
+      alert('Erro ao entrar. Veja o console.')
     }
 
     setCarregando(false)
@@ -70,9 +125,7 @@ export default function Login() {
       <div style={card}>
         <h1 style={titulo}>Espaço Montessoriano</h1>
 
-        <p style={subtitulo}>
-          Plataforma clínica integrada
-        </p>
+        <p style={subtitulo}>Plataforma clínica integrada</p>
 
         <div style={tabs}>
           <button
@@ -98,9 +151,12 @@ export default function Login() {
 
         <div style={form}>
           <input
-            placeholder="Login"
+            placeholder="Login ou e-mail"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') entrar()
+            }}
             style={input}
           />
 
@@ -110,6 +166,9 @@ export default function Login() {
               placeholder="Senha"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') entrar()
+              }}
               style={inputSenha}
             />
 
