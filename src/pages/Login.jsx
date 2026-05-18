@@ -1,10 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const navigate = useNavigate()
-
   const [tipoAcesso, setTipoAcesso] = useState('familia')
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
@@ -38,7 +35,7 @@ export default function Login() {
         localStorage.setItem('usuario', JSON.stringify(data))
         localStorage.setItem('tipo_usuario', 'profissional')
 
-        navigate('/dashboard')
+        window.location.href = '/dashboard'
         return
       }
 
@@ -59,7 +56,7 @@ export default function Login() {
       localStorage.setItem('usuario', JSON.stringify(data))
       localStorage.setItem('tipo_usuario', 'familia')
 
-      navigate('/familia')
+      window.location.href = '/familia'
     } catch (err) {
       console.log(err)
       alert('Erro ao entrar')
