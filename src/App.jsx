@@ -1,5 +1,3 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Pacientes from './pages/Pacientes'
@@ -19,19 +17,27 @@ function getUsuario() {
   }
 }
 
+function irPara(rota) {
+  window.location.href = rota
+}
+
 function Protegida({ children, permitido = [] }) {
   const logado = localStorage.getItem('em_session') === 'ativo'
   const tipo = localStorage.getItem('tipo_usuario')
   const usuario = getUsuario()
 
   if (!logado) {
-    return <Navigate to="/" replace />
+    window.location.href = '/'
+    return null
   }
 
   if (tipo === 'familia') {
-    return permitido.includes('Família')
-      ? <Layout>{children}</Layout>
-      : <Navigate to="/familia" replace />
+    if (permitido.includes('Família')) {
+      return <Layout>{children}</Layout>
+    }
+
+    window.location.href = '/familia'
+    return null
   }
 
   const nivel = usuario?.nivel_acesso || 'Colaborador'
@@ -42,132 +48,122 @@ function Protegida({ children, permitido = [] }) {
     nivel === 'Administradora'
 
   if (!autorizado) {
-    return <Navigate to="/dashboard" replace />
+    window.location.href = '/dashboard'
+    return null
   }
 
   return <Layout>{children}</Layout>
 }
 
 export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
+  const path = window.location.pathname
 
-        <Route path="/" element={<Login />} />
+  if (path === '/') {
+    return <Login />
+  }
 
-        <Route
-          path="/dashboard"
-          element={
-            <Protegida permitido={[
-              'Administradora',
-              'Coordenação',
-              'Auxiliar ADM',
-              'Recepção',
-              'Financeiro',
-              'Supervisor',
-              'Colaborador',
-              'Estagiário'
-            ]}>
-              <Dashboard />
-            </Protegida>
-          }
-        />
+  if (path === '/dashboard') {
+    return (
+      <Protegida permitido={[
+        'Administradora',
+        'Coordenação',
+        'Auxiliar ADM',
+        'Recepção',
+        'Financeiro',
+        'Supervisor',
+        'Colaborador',
+        'Estagiário'
+      ]}>
+        <Dashboard />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/pacientes"
-          element={
-            <Protegida permitido={[
-              'Administradora',
-              'Coordenação',
-              'Auxiliar ADM',
-              'Recepção',
-              'Supervisor',
-              'Colaborador',
-              'Estagiário'
-            ]}>
-              <Pacientes />
-            </Protegida>
-          }
-        />
+  if (path === '/pacientes') {
+    return (
+      <Protegida permitido={[
+        'Administradora',
+        'Coordenação',
+        'Auxiliar ADM',
+        'Recepção',
+        'Supervisor',
+        'Colaborador',
+        'Estagiário'
+      ]}>
+        <Pacientes />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/agenda"
-          element={
-            <Protegida permitido={[
-              'Administradora',
-              'Coordenação',
-              'Auxiliar ADM',
-              'Recepção',
-              'Supervisor',
-              'Colaborador',
-              'Estagiário'
-            ]}>
-              <Agenda />
-            </Protegida>
-          }
-        />
+  if (path === '/agenda') {
+    return (
+      <Protegida permitido={[
+        'Administradora',
+        'Coordenação',
+        'Auxiliar ADM',
+        'Recepção',
+        'Supervisor',
+        'Colaborador',
+        'Estagiário'
+      ]}>
+        <Agenda />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/prontuario"
-          element={
-            <Protegida permitido={[
-              'Administradora',
-              'Coordenação',
-              'Supervisor',
-              'Colaborador'
-            ]}>
-              <Prontuario />
-            </Protegida>
-          }
-        />
+  if (path === '/prontuario') {
+    return (
+      <Protegida permitido={[
+        'Administradora',
+        'Coordenação',
+        'Supervisor',
+        'Colaborador'
+      ]}>
+        <Prontuario />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/financeiro"
-          element={
-            <Protegida permitido={[
-              'Administradora',
-              'Financeiro'
-            ]}>
-              <Financeiro />
-            </Protegida>
-          }
-        />
+  if (path === '/financeiro') {
+    return (
+      <Protegida permitido={[
+        'Administradora',
+        'Financeiro'
+      ]}>
+        <Financeiro />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/profissionais"
-          element={
-            <Protegida permitido={[
-              'Administradora',
-              'Coordenação'
-            ]}>
-              <Profissionais />
-            </Protegida>
-          }
-        />
+  if (path === '/profissionais') {
+    return (
+      <Protegida permitido={[
+        'Administradora',
+        'Coordenação'
+      ]}>
+        <Profissionais />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/configuracoes"
-          element={
-            <Protegida permitido={[
-              'Administradora'
-            ]}>
-              <Configuracoes />
-            </Protegida>
-          }
-        />
+  if (path === '/configuracoes') {
+    return (
+      <Protegida permitido={[
+        'Administradora'
+      ]}>
+        <Configuracoes />
+      </Protegida>
+    )
+  }
 
-        <Route
-          path="/familia"
-          element={
-            <Protegida permitido={['Família']}>
-              <Familia />
-            </Protegida>
-          }
-        />
+  if (path === '/familia') {
+    return (
+      <Protegida permitido={['Família']}>
+        <Familia />
+      </Protegida>
+    )
+  }
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-
-      </Routes>
-    </BrowserRouter>
-  )
+  irPara('/')
+  return null
 }
