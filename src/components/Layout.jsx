@@ -7,67 +7,73 @@ export default function Layout({ children }) {
   const [menuAberto, setMenuAberto] = useState(false)
 
   function sair() {
-    localStorage.removeItem('em_session')
-    localStorage.removeItem('usuario')
-    localStorage.removeItem('tipo_usuario')
+    localStorage.clear()
     window.location.href = '/'
   }
 
   function irPara(rota) {
     window.location.href = rota
-    setMenuAberto(false)
   }
 
-  const menusProfissionais = [
-    {
-      nome: 'Dashboard',
-      rota: '/dashboard',
-      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Financeiro', 'Supervisor', 'Colaborador', 'Estagiário']
-    },
-    {
-      nome: 'Pacientes',
-      rota: '/pacientes',
-      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Supervisor', 'Colaborador', 'Estagiário']
-    },
-    {
-      nome: 'Agenda',
-      rota: '/agenda',
-      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Supervisor', 'Colaborador', 'Estagiário']
-    },
-    {
-      nome: 'Prontuário',
-      rota: '/prontuario',
-      perfis: ['Administradora', 'Coordenação', 'Supervisor', 'Colaborador']
-    },
-    {
-      nome: 'Financeiro',
-      rota: '/financeiro',
-      perfis: ['Administradora', 'Financeiro']
-    },
-    {
-      nome: 'Profissionais',
-      rota: '/profissionais',
-      perfis: ['Administradora', 'Coordenação']
-    },
-    {
-      nome: 'Configurações',
-      rota: '/configuracoes',
-      perfis: ['Administradora']
-    }
-  ]
-
-  const menusFamilia = [
+  const menuFamilia = [
     { nome: 'App Família', rota: '/familia' }
   ]
 
+  const menusPorPerfil = {
+    Administradora: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' },
+      { nome: 'Prontuário', rota: '/prontuario' },
+      { nome: 'Financeiro', rota: '/financeiro' },
+      { nome: 'Profissionais', rota: '/profissionais' },
+      { nome: 'Configurações', rota: '/configuracoes' },
+      { nome: 'Ver App Família', rota: '/familia' }
+    ],
+    Coordenação: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' },
+      { nome: 'Prontuário', rota: '/prontuario' },
+      { nome: 'Profissionais', rota: '/profissionais' }
+    ],
+    'Auxiliar ADM': [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' }
+    ],
+    Recepção: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' }
+    ],
+    Financeiro: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Financeiro', rota: '/financeiro' }
+    ],
+    Supervisor: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' },
+      { nome: 'Prontuário', rota: '/prontuario' }
+    ],
+    Colaborador: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' },
+      { nome: 'Prontuário', rota: '/prontuario' }
+    ],
+    Estagiário: [
+      { nome: 'Dashboard', rota: '/dashboard' },
+      { nome: 'Pacientes', rota: '/pacientes' },
+      { nome: 'Agenda', rota: '/agenda' }
+    ]
+  }
+
   const menus =
     tipo === 'familia'
-      ? menusFamilia
-      : menusProfissionais.filter(
-          (item) =>
-            nivel === 'Administradora' ||
-            item.perfis.includes(nivel)
-        )
+      ? menuFamilia
+      : menusPorPerfil[nivel] || menusPorPerfil.Colaborador
 
   return (
     <div style={pagina}>
@@ -86,11 +92,11 @@ export default function Layout({ children }) {
       <aside style={menuAberto ? sidebarMobileAberta : sidebar}>
         <h2 style={logo}>Espaço Montessoriano</h2>
 
-        <p style={perfil}>
-          {usuario?.nome || 'Usuário'}
+        <div style={perfil}>
+          <strong>{usuario?.nome || 'Usuário'}</strong>
           <br />
           <small>{tipo === 'familia' ? 'Família' : nivel}</small>
-        </p>
+        </div>
 
         <nav style={menu}>
           {menus.map((item) => (
