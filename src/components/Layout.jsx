@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function Layout({ children }) {
@@ -5,12 +6,18 @@ export default function Layout({ children }) {
   const usuario = JSON.parse(localStorage.getItem('usuario') || '{}')
   const tipo = localStorage.getItem('tipo_usuario')
   const nivel = usuario?.nivel_acesso || 'Terapeuta'
+  const [menuAberto, setMenuAberto] = useState(false)
 
   function sair() {
     localStorage.removeItem('em_session')
     localStorage.removeItem('usuario')
     localStorage.removeItem('tipo_usuario')
     navigate('/')
+  }
+
+  function irPara(rota) {
+    navigate(rota)
+    setMenuAberto(false)
   }
 
   const menusProfissionais = [
@@ -38,7 +45,19 @@ export default function Layout({ children }) {
 
   return (
     <div style={pagina}>
-      <aside style={sidebar}>
+      <header style={topbar}>
+        <button onClick={() => setMenuAberto(!menuAberto)} style={botaoMobile}>
+          ☰
+        </button>
+
+        <strong>Espaço Montessoriano</strong>
+
+        <button onClick={sair} style={sairTopo}>
+          Sair
+        </button>
+      </header>
+
+      <aside style={menuAberto ? sidebarMobileAberta : sidebar}>
         <h2 style={logo}>Espaço Montessoriano</h2>
 
         <p style={perfil}>
@@ -51,7 +70,7 @@ export default function Layout({ children }) {
           {menus.map((item) => (
             <button
               key={item.rota}
-              onClick={() => navigate(item.rota)}
+              onClick={() => irPara(item.rota)}
               style={botaoMenu}
             >
               {item.nome}
@@ -63,6 +82,13 @@ export default function Layout({ children }) {
           Sair
         </button>
       </aside>
+
+      {menuAberto && (
+        <button
+          onClick={() => setMenuAberto(false)}
+          style={fundoEscuro}
+        />
+      )}
 
       <main style={conteudo}>
         {children}
@@ -78,6 +104,41 @@ const pagina = {
   fontFamily: 'Arial'
 }
 
+const topbar = {
+  display: 'none',
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 58,
+  background: '#0f766e',
+  color: '#fff',
+  zIndex: 50,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '0 14px'
+}
+
+const botaoMobile = {
+  background: 'rgba(255,255,255,0.15)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  padding: 10,
+  cursor: 'pointer',
+  fontSize: 20
+}
+
+const sairTopo = {
+  background: '#dc2626',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  padding: '8px 10px',
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
+
 const sidebar = {
   width: 260,
   background: '#0f766e',
@@ -88,7 +149,14 @@ const sidebar = {
   gap: 20,
   position: 'sticky',
   top: 0,
-  height: '100vh'
+  height: '100vh',
+  zIndex: 60
+}
+
+const sidebarMobileAberta = {
+  ...sidebar,
+  position: 'fixed',
+  left: 0
 }
 
 const logo = {
@@ -128,6 +196,14 @@ const botaoSair = {
   padding: 12,
   cursor: 'pointer',
   fontWeight: 'bold'
+}
+
+const fundoEscuro = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.35)',
+  border: 'none',
+  zIndex: 55
 }
 
 const conteudo = {
