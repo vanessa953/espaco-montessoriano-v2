@@ -1,133 +1,240 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Pacientes from './pages/Pacientes'
-import Agenda from './pages/Agenda'
-import Prontuario from './pages/Prontuario'
-import Financeiro from './pages/Financeiro'
-import Familia from './pages/Familia'
-import Profissionais from './pages/Profissionais'
-import Configuracoes from './pages/Configuracoes'
-import Layout from './components/Layout'
-
-function getUsuario() {
-  try {
-    return JSON.parse(localStorage.getItem('usuario') || '{}')
-  } catch {
-    return {}
-  }
-}
-
-function Protegida({ children, permitido = [] }) {
-  const logado = localStorage.getItem('em_session') === 'ativo'
+export default function Layout({ children }) {
+  const navigate = useNavigate()
+  const usuario = JSON.parse(localStorage.getItem('usuario') || '{}')
   const tipo = localStorage.getItem('tipo_usuario')
-  const usuario = getUsuario()
+  const nivel = usuario?.nivel_acesso || 'Colaborador'
+  const [menuAberto, setMenuAberto] = useState(false)
 
-  if (!logado) {
-    return <Navigate to="/" replace />
+  function sair() {
+    localStorage.removeItem('em_session')
+    localStorage.removeItem('usuario')
+    localStorage.removeItem('tipo_usuario')
+    navigate('/')
   }
 
-  if (tipo === 'familia') {
-    return permitido.includes('Família')
-      ? <Layout>{children}</Layout>
-      : <Navigate to="/familia" replace />
+  function irPara(rota) {
+    navigate(rota)
+    setMenuAberto(false)
   }
 
-  const nivel = usuario?.nivel_acesso || 'Terapeuta'
+  const menusProfissionais = [
+    {
+      nome: 'Dashboard',
+      rota: '/dashboard',
+      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Financeiro', 'Supervisor', 'Colaborador', 'Estagiário']
+    },
+    {
+      nome: 'Pacientes',
+      rota: '/pacientes',
+      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Supervisor', 'Colaborador', 'Estagiário']
+    },
+    {
+      nome: 'Agenda',
+      rota: '/agenda',
+      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Supervisor', 'Colaborador', 'Estagiário']
+    },
+    {
+      nome: 'Prontuário',
+      rota: '/prontuario',
+      perfis: ['Administradora', 'Coordenação', 'Supervisor', 'Colaborador']
+    },
+    {
+      nome: 'Financeiro',
+      rota: '/financeiro',
+      perfis: ['Administradora', 'Financeiro']
+    },
+    {
+      nome: 'Profissionais',
+      rota: '/profissionais',
+      perfis: ['Administradora', 'Coordenação']
+    },
+    {
+      nome: 'Configurações',
+      rota: '/configuracoes',
+      perfis: ['Administradora']
+    }
+  ]
 
-  const autorizado =
-    permitido.length === 0 ||
-    permitido.includes(nivel) ||
-    nivel === 'Administradora'
+  const menusFamilia = [
+    { nome: 'App Família', rota: '/familia' }
+  ]
 
-  if (!autorizado) {
-    return <Navigate to="/dashboard" replace />
-  }
+  const menus =
+    tipo === 'familia'
+      ? menusFamilia
+      : menusProfissionais.filter(
+          (item) =>
+            nivel === 'Administradora' ||
+            item.perfis.includes(nivel)
+        )
 
-  return <Layout>{children}</Layout>
+  return (
+    <div style={pagina}>
+      <header style={topbar}>
+        <button onClick={() => setMenuAberto(!menuAberto)} style={botaoMobile}>
+          ☰
+        </button>
+
+        <strong>Espaço Montessoriano</strong>
+
+        <button onClick={sair} style={sairTopo}>
+          Sair
+        </button>
+      </header>
+
+      <aside style={menuAberto ? sidebarMobileAberta : sidebar}>
+        <h2 style={logo}>Espaço Montessoriano</h2>
+
+        <p style={perfil}>
+          {usuario?.nome || 'Usuário'}
+          <br />
+          <small>{tipo === 'familia' ? 'Família' : nivel}</small>
+        </p>
+
+        <nav style={menu}>
+          {menus.map((item) => (
+            <button
+              key={item.rota}
+              onClick={() => irPara(item.rota)}
+              style={botaoMenu}
+            >
+              {item.nome}
+            </button>
+          ))}
+        </nav>
+
+        <button onClick={sair} style={botaoSair}>
+          Sair
+        </button>
+      </aside>
+
+      {menuAberto && (
+        <button
+          onClick={() => setMenuAberto(false)}
+          style={fundoEscuro}
+        />
+      )}
+
+      <main style={conteudo}>
+        {children}
+      </main>
+    </div>
+  )
 }
 
-export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Login />} />
+const pagina = {
+  display: 'flex',
+  minHeight: '100vh',
+  background: '#f5f7fb',
+  fontFamily: 'Arial'
+}
 
-        <Route
-          path="/dashboard"
-          element={
-            <Protegida permitido={['Administradora', 'Coordenação', 'Recepção', 'Financeiro', 'Supervisor', 'Terapeuta']}>
-              <Dashboard />
-            </Protegida>
-          }
-        />
+const topbar = {
+  display: 'none',
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 58,
+  background: '#0f766e',
+  color: '#fff',
+  zIndex: 50,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '0 14px'
+}
 
-        <Route
-          path="/pacientes"
-          element={
-            <Protegida permitido={['Administradora', 'Coordenação', 'Recepção', 'Supervisor', 'Terapeuta']}>
-              <Pacientes />
-            </Protegida>
-          }
-        />
+const botaoMobile = {
+  background: 'rgba(255,255,255,0.15)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  padding: 10,
+  cursor: 'pointer',
+  fontSize: 20
+}
 
-        <Route
-          path="/agenda"
-          element={
-            <Protegida permitido={['Administradora', 'Coordenação', 'Recepção', 'Supervisor', 'Terapeuta']}>
-              <Agenda />
-            </Protegida>
-          }
-        />
+const sairTopo = {
+  background: '#dc2626',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  padding: '8px 10px',
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
 
-        <Route
-          path="/prontuario"
-          element={
-            <Protegida permitido={['Administradora', 'Coordenação', 'Supervisor', 'Terapeuta']}>
-              <Prontuario />
-            </Protegida>
-          }
-        />
+const sidebar = {
+  width: 260,
+  background: '#0f766e',
+  color: '#fff',
+  padding: 24,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 20,
+  position: 'sticky',
+  top: 0,
+  height: '100vh',
+  zIndex: 60
+}
 
-        <Route
-          path="/financeiro"
-          element={
-            <Protegida permitido={['Administradora', 'Financeiro']}>
-              <Financeiro />
-            </Protegida>
-          }
-        />
+const sidebarMobileAberta = {
+  ...sidebar,
+  position: 'fixed',
+  left: 0
+}
 
-        <Route
-          path="/familia"
-          element={
-            <Protegida permitido={['Família']}>
-              <Familia />
-            </Protegida>
-          }
-        />
+const logo = {
+  fontSize: 24,
+  margin: 0
+}
 
-        <Route
-          path="/profissionais"
-          element={
-            <Protegida permitido={['Administradora', 'Coordenação']}>
-              <Profissionais />
-            </Protegida>
-          }
-        />
+const perfil = {
+  background: 'rgba(255,255,255,0.12)',
+  padding: 14,
+  borderRadius: 14,
+  lineHeight: 1.5
+}
 
-        <Route
-          path="/configuracoes"
-          element={
-            <Protegida permitido={['Administradora']}>
-              <Configuracoes />
-            </Protegida>
-          }
-        />
+const menu = {
+  display: 'grid',
+  gap: 10
+}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  )
+const botaoMenu = {
+  background: 'rgba(255,255,255,0.15)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: 12,
+  cursor: 'pointer',
+  textAlign: 'left',
+  fontWeight: 'bold'
+}
+
+const botaoSair = {
+  marginTop: 'auto',
+  background: '#dc2626',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: 12,
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
+
+const fundoEscuro = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.35)',
+  border: 'none',
+  zIndex: 55
+}
+
+const conteudo = {
+  flex: 1,
+  minWidth: 0
 }
