@@ -11,7 +11,9 @@ export default function Profissionais() {
   const [fotoArquivo, setFotoArquivo] = useState(null)
   const [documentos, setDocumentos] = useState([])
   const [notasFiscais, setNotasFiscais] = useState([])
+
   const [pacientesSelecionados, setPacientesSelecionados] = useState([])
+  const [tipoVinculo, setTipoVinculo] = useState('Atendimento')
 
   const [form, setForm] = useState({
     nome: '',
@@ -27,12 +29,12 @@ export default function Profissionais() {
     foto_url: '',
     login_app: '',
     senha_app: '',
+
     tipo_pagamento: 'Por hora',
     valor_hora: 0,
     valor_sessao: 0,
     percentual_repasse: 0,
-    observacao_pagamento: '',
-    tipo_vinculo: 'Atendimento'
+    observacao_pagamento: ''
   })
 
   async function carregarDados() {
@@ -50,10 +52,9 @@ export default function Profissionais() {
       .from('profissional_pacientes')
       .select(`
         *,
-        profissionais(nome),
-        pacientes(nome)
+        pacientes(nome),
+        profissionais(nome)
       `)
-      .eq('ativo', true)
       .order('created_at', { ascending: false })
 
     setProfissionais(profissionaisData || [])
@@ -129,33 +130,6 @@ export default function Profissionais() {
     return data.publicUrl
   }
 
-  async function salvarVinculos(profissionalId) {
-    if (!profissionalId) return
-
-    await supabase
-      .from('profissional_pacientes')
-      .update({ ativo: false })
-      .eq('profissional_id', profissionalId)
-
-    if (!pacientesSelecionados.length) return
-
-    const registros = pacientesSelecionados.map((pacienteId) => ({
-      profissional_id: profissionalId,
-      paciente_id: pacienteId,
-      tipo_vinculo: form.tipo_vinculo || 'Atendimento',
-      ativo: true
-    }))
-
-    const { error } = await supabase
-      .from('profissional_pacientes')
-      .insert(registros)
-
-    if (error) {
-      console.log(error)
-      alert('Profissional salvo, mas houve erro ao salvar vínculos.')
-    }
-  }
-
   async function salvarProfissional() {
     if (!form.nome) {
       alert('Digite o nome do profissional.')
@@ -175,24 +149,13 @@ export default function Profissionais() {
     const acesso = gerarAcessoProfissional(form)
 
     const dados = {
-      nome: form.nome,
-      cpf: form.cpf,
-      email: form.email,
-      telefone: form.telefone,
-      cargo: form.cargo,
-      especialidade: form.especialidade,
-      conselho: form.conselho,
-      nivel_acesso: form.nivel_acesso,
-      observacoes: form.observacoes,
-      ativo: form.ativo,
+      ...form,
+      ...acesso,
       foto_url: fotoUrl,
-      login_app: acesso.login_app,
-      senha_app: acesso.senha_app,
-      tipo_pagamento: form.tipo_pagamento,
+      ativo: form.ativo,
       valor_hora: Number(form.valor_hora || 0),
       valor_sessao: Number(form.valor_sessao || 0),
-      percentual_repasse: Number(form.percentual_repasse || 0),
-      observacao_pagamento: form.observacao_pagamento
+      percentual_repasse: Number(form.percentual_repasse || 0)
     }
 
     let profissionalId = editandoId
@@ -224,15 +187,42 @@ export default function Profissionais() {
     }
 
     if (profissionalId) {
-      await salvarVinculos(profissionalId)
       await salvarDocumentos(profissionalId)
       await salvarNotasFiscais(profissionalId)
+      await salvarVinculos(profissionalId)
     }
 
-    alert(editandoId ? 'Profissional atualizado com sucesso.' : 'Profissional cadastrado com sucesso.')
+    alert(editandoId ? 'Profissional atualizado.' : 'Profissional cadastrado.')
 
     limparFormulario()
     carregarDados()
+  }
+
+  async function salvarVinculos(profissionalId) {
+    if (!profissionalId) return
+
+    await supabase
+      .from('profissional_pacientes')
+      .update({ ativo: false })
+      .eq('profissional_id', profissionalId)
+
+    if (!pacientesSelecionados.length) return
+
+    const registros = pacientesSelecionados.map((pacienteId) => ({
+      profissional_id: profissionalId,
+      paciente_id: pacienteId,
+      tipo_vinculo: tipoVinculo,
+      ativo: true
+    }))
+
+    const { error } = await supabase
+      .from('profissional_pacientes')
+      .insert(registros)
+
+    if (error) {
+      console.log(error)
+      alert('Profissional salvo, mas houve erro ao salvar vínculos.')
+    }
   }
 
   async function salvarDocumentos(profissionalId) {
@@ -274,72 +264,46 @@ export default function Profissionais() {
             tipo: arquivo.type,
             url,
             competencia: new Date().toISOString().slice(0, 7),
-            valor: 0,
-            observacoes: 'Nota fiscal anexada ao cadastro.'
+            valor: 0
           }])
       }
     }
   }
 
-  function limparFormulario() {
-    setEditandoId(null)
-    setFotoArquivo(null)
-    setDocumentos([])
-    setNotasFiscais([])
-    setPacientesSelecionados([])
+  function editarProfissional(profissional) {
+    setEditandoId(profissional.id)
 
-    setForm({
-      nome: '',
-      cpf: '',
-      email: '',
-      telefone: '',
-      cargo: '',
-      especialidade: '',
-      conselho: '',
-      nivel_acesso: 'Terapeuta',
-      observacoes: '',
-      ativo: true,
-      foto_url: '',
-      login_app: '',
-      senha_app: '',
-      tipo_pagamento: 'Por hora',
-      valor_hora: 0,
-      valor_sessao: 0,
-      percentual_repasse: 0,
-      observacao_pagamento: '',
-      tipo_vinculo: 'Atendimento'
-    })
-  }
-
-  function editarProfissional(prof) {
-    setEditandoId(prof.id)
-
-    const pacientesDoProfissional = vinculos
-      .filter((v) => v.profissional_id === prof.id && v.ativo)
+    const vinculosAtivos = vinculos
+      .filter((v) => v.profissional_id === profissional.id && v.ativo !== false)
       .map((v) => v.paciente_id)
 
-    setPacientesSelecionados(pacientesDoProfissional)
+    const primeiroVinculo = vinculos.find(
+      (v) => v.profissional_id === profissional.id && v.ativo !== false
+    )
+
+    setPacientesSelecionados(vinculosAtivos)
+    setTipoVinculo(primeiroVinculo?.tipo_vinculo || 'Atendimento')
 
     setForm({
-      nome: prof.nome || '',
-      cpf: prof.cpf || '',
-      email: prof.email || '',
-      telefone: prof.telefone || '',
-      cargo: prof.cargo || '',
-      especialidade: prof.especialidade || '',
-      conselho: prof.conselho || '',
-      nivel_acesso: prof.nivel_acesso || 'Terapeuta',
-      observacoes: prof.observacoes || '',
-      ativo: prof.ativo ?? true,
-      foto_url: prof.foto_url || '',
-      login_app: prof.login_app || '',
-      senha_app: prof.senha_app || '',
-      tipo_pagamento: prof.tipo_pagamento || 'Por hora',
-      valor_hora: prof.valor_hora || 0,
-      valor_sessao: prof.valor_sessao || 0,
-      percentual_repasse: prof.percentual_repasse || 0,
-      observacao_pagamento: prof.observacao_pagamento || '',
-      tipo_vinculo: 'Atendimento'
+      nome: profissional.nome || '',
+      cpf: profissional.cpf || '',
+      email: profissional.email || '',
+      telefone: profissional.telefone || '',
+      cargo: profissional.cargo || '',
+      especialidade: profissional.especialidade || '',
+      conselho: profissional.conselho || '',
+      nivel_acesso: profissional.nivel_acesso || 'Terapeuta',
+      observacoes: profissional.observacoes || '',
+      ativo: profissional.ativo ?? true,
+      foto_url: profissional.foto_url || '',
+      login_app: profissional.login_app || '',
+      senha_app: profissional.senha_app || '',
+
+      tipo_pagamento: profissional.tipo_pagamento || 'Por hora',
+      valor_hora: profissional.valor_hora || 0,
+      valor_sessao: profissional.valor_sessao || 0,
+      percentual_repasse: profissional.percentual_repasse || 0,
+      observacao_pagamento: profissional.observacao_pagamento || ''
     })
 
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -363,11 +327,43 @@ export default function Profissionais() {
     carregarDados()
   }
 
-  function copiarAcesso(prof) {
-    const texto = `Acesso ao App Espaço Montessoriano
+  function limparFormulario() {
+    setEditandoId(null)
+    setFotoArquivo(null)
+    setDocumentos([])
+    setNotasFiscais([])
+    setPacientesSelecionados([])
+    setTipoVinculo('Atendimento')
 
-Login: ${prof.login_app}
-Senha: ${prof.senha_app}`
+    setForm({
+      nome: '',
+      cpf: '',
+      email: '',
+      telefone: '',
+      cargo: '',
+      especialidade: '',
+      conselho: '',
+      nivel_acesso: 'Terapeuta',
+      observacoes: '',
+      ativo: true,
+      foto_url: '',
+      login_app: '',
+      senha_app: '',
+
+      tipo_pagamento: 'Por hora',
+      valor_hora: 0,
+      valor_sessao: 0,
+      percentual_repasse: 0,
+      observacao_pagamento: ''
+    })
+  }
+
+  function copiarAcesso(profissional) {
+    const texto = `Acesso App Espaço Montessoriano
+
+Profissional: ${profissional.nome}
+Login: ${profissional.login_app}
+Senha: ${profissional.senha_app}`
 
     navigator.clipboard.writeText(texto)
     alert('Acesso copiado.')
@@ -376,24 +372,24 @@ Senha: ${prof.senha_app}`
   const profissionaisFiltrados = useMemo(() => {
     const texto = busca.toLowerCase()
 
-    return profissionais.filter((p) => {
-      return (
-        p.nome?.toLowerCase().includes(texto) ||
-        p.cargo?.toLowerCase().includes(texto) ||
-        p.especialidade?.toLowerCase().includes(texto) ||
-        p.nivel_acesso?.toLowerCase().includes(texto)
-      )
-    })
+    return profissionais.filter((p) => (
+      p.nome?.toLowerCase().includes(texto) ||
+      p.cargo?.toLowerCase().includes(texto) ||
+      p.especialidade?.toLowerCase().includes(texto) ||
+      p.nivel_acesso?.toLowerCase().includes(texto)
+    ))
   }, [profissionais, busca])
 
-  function pacientesVinculadosTexto(profissionalId) {
+  function nomesVinculados(profissionalId) {
     const lista = vinculos.filter(
-      (v) => v.profissional_id === profissionalId && v.ativo
+      (v) => v.profissional_id === profissionalId && v.ativo !== false
     )
 
     if (!lista.length) return 'Nenhum paciente vinculado.'
 
-    return lista.map((v) => v.pacientes?.nome).filter(Boolean).join(', ')
+    return lista
+      .map((v) => v.pacientes?.nome || 'Paciente')
+      .join(', ')
   }
 
   return (
@@ -401,18 +397,18 @@ Senha: ${prof.senha_app}`
       <h1>Profissionais</h1>
 
       <p style={{ color: '#666', marginBottom: 25 }}>
-        Cadastro da equipe, permissões, documentos, notas fiscais, pagamentos e vínculos com pacientes.
+        Cadastro da equipe, acesso ao app, pagamento, documentos e vínculo com pacientes.
       </p>
 
       <div style={box}>
         <h2>{editandoId ? 'Editar profissional' : 'Cadastrar profissional'}</h2>
 
         <div style={grid}>
-          <input placeholder="Nome completo" value={form.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
+          <input placeholder="Nome" value={form.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
           <input placeholder="CPF" value={form.cpf} onChange={(e) => atualizarCampo('cpf', e.target.value)} />
           <input placeholder="E-mail" value={form.email} onChange={(e) => atualizarCampo('email', e.target.value)} />
-          <input placeholder="Telefone / WhatsApp" value={form.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
-          <input placeholder="Cargo / função" value={form.cargo} onChange={(e) => atualizarCampo('cargo', e.target.value)} />
+          <input placeholder="Telefone" value={form.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
+          <input placeholder="Cargo" value={form.cargo} onChange={(e) => atualizarCampo('cargo', e.target.value)} />
           <input placeholder="Especialidade" value={form.especialidade} onChange={(e) => atualizarCampo('especialidade', e.target.value)} />
           <input placeholder="Conselho profissional" value={form.conselho} onChange={(e) => atualizarCampo('conselho', e.target.value)} />
 
@@ -431,63 +427,41 @@ Senha: ${prof.senha_app}`
           </select>
 
           <div />
+        </div>
+      </div>
 
-          <div style={boxInterno}>
-            <h3>Acesso ao app</h3>
+      <div style={box}>
+        <h2>Acesso ao app</h2>
 
-            <input placeholder="Login do app" value={form.login_app} onChange={(e) => atualizarCampo('login_app', e.target.value)} />
+        <div style={grid}>
+          <input placeholder="Login do app" value={form.login_app} onChange={(e) => atualizarCampo('login_app', e.target.value)} />
+          <input placeholder="Senha do app" value={form.senha_app} onChange={(e) => atualizarCampo('senha_app', e.target.value)} />
+        </div>
 
-            <input
-              placeholder="Senha do app"
-              value={form.senha_app}
-              onChange={(e) => atualizarCampo('senha_app', e.target.value)}
-              style={{ marginTop: 10 }}
-            />
+        <p style={small}>
+          Se deixar em branco, o sistema cria login e senha automaticamente.
+        </p>
+      </div>
 
-            <p style={small}>
-              Se deixar em branco, o sistema gera automaticamente.
-            </p>
-          </div>
+      <div style={box}>
+        <h2>Pagamento do profissional</h2>
 
-          <div style={boxInterno}>
-            <h3>Pagamento</h3>
+        <div style={grid}>
+          <select value={form.tipo_pagamento} onChange={(e) => atualizarCampo('tipo_pagamento', e.target.value)}>
+            <option>Por hora</option>
+            <option>Por sessão</option>
+            <option>Percentual</option>
+          </select>
 
-            <select value={form.tipo_pagamento} onChange={(e) => atualizarCampo('tipo_pagamento', e.target.value)}>
-              <option>Por hora</option>
-              <option>Por sessão</option>
-              <option>Percentual</option>
-            </select>
-
-            <input type="number" placeholder="Valor hora" value={form.valor_hora} onChange={(e) => atualizarCampo('valor_hora', e.target.value)} style={{ marginTop: 10 }} />
-            <input type="number" placeholder="Valor sessão" value={form.valor_sessao} onChange={(e) => atualizarCampo('valor_sessao', e.target.value)} style={{ marginTop: 10 }} />
-            <input type="number" placeholder="% repasse" value={form.percentual_repasse} onChange={(e) => atualizarCampo('percentual_repasse', e.target.value)} style={{ marginTop: 10 }} />
-
-            <textarea
-              placeholder="Observações sobre pagamento"
-              value={form.observacao_pagamento}
-              onChange={(e) => atualizarCampo('observacao_pagamento', e.target.value)}
-              style={{ marginTop: 10, width: '100%', minHeight: 90 }}
-            />
-          </div>
-
-          <div style={boxInterno}>
-            <h3>Foto e anexos</h3>
-
-            <label style={label}>Foto</label>
-            <input type="file" accept="image/*" onChange={(e) => setFotoArquivo(e.target.files?.[0])} />
-
-            <label style={label}>Documentos</label>
-            <input type="file" multiple onChange={(e) => setDocumentos(Array.from(e.target.files || []))} />
-
-            <label style={label}>Notas fiscais</label>
-            <input type="file" multiple onChange={(e) => setNotasFiscais(Array.from(e.target.files || []))} />
-          </div>
+          <input type="number" placeholder="Valor hora" value={form.valor_hora} onChange={(e) => atualizarCampo('valor_hora', e.target.value)} />
+          <input type="number" placeholder="Valor sessão" value={form.valor_sessao} onChange={(e) => atualizarCampo('valor_sessao', e.target.value)} />
+          <input type="number" placeholder="% repasse" value={form.percentual_repasse} onChange={(e) => atualizarCampo('percentual_repasse', e.target.value)} />
 
           <textarea
-            placeholder="Observações gerais"
-            value={form.observacoes}
-            onChange={(e) => atualizarCampo('observacoes', e.target.value)}
-            style={{ minHeight: 180 }}
+            placeholder="Observações sobre pagamento"
+            value={form.observacao_pagamento}
+            onChange={(e) => atualizarCampo('observacao_pagamento', e.target.value)}
+            style={{ gridColumn: '1 / span 2', minHeight: 100 }}
           />
         </div>
       </div>
@@ -495,41 +469,65 @@ Senha: ${prof.senha_app}`
       <div style={box}>
         <h2>Pacientes vinculados ao profissional</h2>
 
-        <p style={{ color: '#666' }}>
-          Selecione quais pacientes este profissional pode visualizar e atender no sistema.
-        </p>
-
-        <select
-          value={form.tipo_vinculo}
-          onChange={(e) => atualizarCampo('tipo_vinculo', e.target.value)}
-          style={{ marginBottom: 15 }}
-        >
-          <option>Atendimento</option>
-          <option>Supervisão</option>
-          <option>Acompanhamento Pedagógico</option>
-          <option>Avaliação</option>
-          <option>Coordenação</option>
-        </select>
+        <div style={grid}>
+          <select value={tipoVinculo} onChange={(e) => setTipoVinculo(e.target.value)}>
+            <option>Atendimento</option>
+            <option>Supervisão</option>
+            <option>Acompanhamento pedagógico</option>
+            <option>Avaliação</option>
+            <option>Equipe multidisciplinar</option>
+          </select>
+        </div>
 
         <div style={listaPacientes}>
-          {pacientes.map((p) => (
-            <label key={p.id} style={pacienteItem}>
+          {pacientes.map((paciente) => (
+            <label key={paciente.id} style={pacienteItem}>
               <input
                 type="checkbox"
-                checked={pacientesSelecionados.includes(p.id)}
-                onChange={() => togglePaciente(p.id)}
+                checked={pacientesSelecionados.includes(paciente.id)}
+                onChange={() => togglePaciente(paciente.id)}
               />
               <span>
-                {p.nome}
+                <strong>{paciente.nome}</strong>
                 <br />
-                <small>{p.responsavel || ''}</small>
+                <small>{paciente.responsavel || '-'}</small>
               </span>
             </label>
           ))}
         </div>
       </div>
 
-      <div style={acoesFormulario}>
+      <div style={box}>
+        <h2>Arquivos do profissional</h2>
+
+        <div style={grid}>
+          <div>
+            <label style={label}>Foto</label>
+            <input type="file" accept="image/*" onChange={(e) => setFotoArquivo(e.target.files[0])} />
+          </div>
+
+          <div>
+            <label style={label}>Documentos</label>
+            <input type="file" multiple onChange={(e) => setDocumentos(Array.from(e.target.files || []))} />
+          </div>
+
+          <div>
+            <label style={label}>Notas fiscais</label>
+            <input type="file" multiple onChange={(e) => setNotasFiscais(Array.from(e.target.files || []))} />
+          </div>
+        </div>
+      </div>
+
+      <div style={box}>
+        <h2>Observações</h2>
+
+        <textarea
+          placeholder="Observações gerais sobre o profissional"
+          value={form.observacoes}
+          onChange={(e) => atualizarCampo('observacoes', e.target.value)}
+          style={textarea}
+        />
+
         <button onClick={salvarProfissional} style={botaoPrincipal}>
           {editandoId ? 'Atualizar profissional' : 'Cadastrar profissional'}
         </button>
@@ -543,7 +541,7 @@ Senha: ${prof.senha_app}`
         <h2>Buscar profissional</h2>
 
         <input
-          placeholder="Buscar por nome, cargo, especialidade ou nível de acesso"
+          placeholder="Buscar por nome, cargo, especialidade ou nível"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           style={inputBusca}
@@ -555,42 +553,31 @@ Senha: ${prof.senha_app}`
       <div style={{ display: 'grid', gap: 15 }}>
         {profissionaisFiltrados.map((p) => (
           <div key={p.id} style={card}>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              <div style={fotoBox}>
-                {p.foto_url ? (
-                  <img src={p.foto_url} alt={p.nome} style={fotoImg} />
-                ) : (
-                  <span>Sem foto</span>
-                )}
-              </div>
+            <h3>{p.nome}</h3>
 
-              <div style={{ flex: 1 }}>
-                <h3>{p.nome}</h3>
-                <p><strong>Cargo:</strong> {p.cargo || '-'}</p>
-                <p><strong>Especialidade:</strong> {p.especialidade || '-'}</p>
-                <p><strong>Nível:</strong> {p.nivel_acesso || '-'}</p>
-                <p><strong>Status:</strong> {p.ativo ? 'Ativo' : 'Inativo'}</p>
-                <p><strong>Tipo pagamento:</strong> {p.tipo_pagamento || '-'}</p>
-                <p><strong>Valor hora:</strong> R$ {p.valor_hora || 0}</p>
-                <p><strong>Valor sessão:</strong> R$ {p.valor_sessao || 0}</p>
-                <p><strong>% repasse:</strong> {p.percentual_repasse || 0}%</p>
-                <p><strong>Login:</strong> {p.login_app || '-'}</p>
-                <p><strong>Pacientes vinculados:</strong> {pacientesVinculadosTexto(p.id)}</p>
-              </div>
+            <p><strong>Cargo:</strong> {p.cargo || '-'}</p>
+            <p><strong>Especialidade:</strong> {p.especialidade || '-'}</p>
+            <p><strong>Nível:</strong> {p.nivel_acesso || '-'}</p>
+            <p><strong>Status:</strong> {p.ativo !== false ? 'Ativo' : 'Inativo'}</p>
+            <p><strong>Tipo pagamento:</strong> {p.tipo_pagamento || '-'}</p>
+            <p><strong>Valor hora:</strong> R$ {p.valor_hora || 0}</p>
+            <p><strong>Valor sessão:</strong> R$ {p.valor_sessao || 0}</p>
+            <p><strong>% repasse:</strong> {p.percentual_repasse || 0}%</p>
+            <p><strong>Pacientes vinculados:</strong> {nomesVinculados(p.id)}</p>
+            <p><strong>Login:</strong> {p.login_app || '-'}</p>
 
-              <div style={acoes}>
-                <button onClick={() => copiarAcesso(p)} style={botaoAzul}>
-                  Copiar acesso
-                </button>
+            <div style={acoes}>
+              <button onClick={() => copiarAcesso(p)} style={botaoAzul}>
+                Copiar acesso
+              </button>
 
-                <button onClick={() => editarProfissional(p)} style={botaoEditar}>
-                  Editar
-                </button>
+              <button onClick={() => editarProfissional(p)} style={botaoEditar}>
+                Editar
+              </button>
 
-                <button onClick={() => excluirProfissional(p.id)} style={botaoExcluir}>
-                  Excluir
-                </button>
-              </div>
+              <button onClick={() => excluirProfissional(p.id)} style={botaoExcluir}>
+                Excluir
+              </button>
             </div>
           </div>
         ))}
@@ -601,17 +588,17 @@ Senha: ${prof.senha_app}`
 
 const pagina = {
   padding: 30,
-  fontFamily: 'Arial',
   background: '#f5f7fb',
-  minHeight: '100vh'
+  minHeight: '100vh',
+  fontFamily: 'Arial'
 }
 
 const box = {
   background: '#fff',
-  padding: 25,
+  padding: 24,
   borderRadius: 16,
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 25
+  marginBottom: 24,
+  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
 }
 
 const grid = {
@@ -620,67 +607,31 @@ const grid = {
   gap: 15
 }
 
-const boxInterno = {
-  background: '#f8fafc',
-  border: '1px solid #e5e7eb',
-  borderRadius: 14,
-  padding: 15
-}
-
 const listaPacientes = {
   display: 'grid',
   gridTemplateColumns: '1fr 1fr 1fr',
-  gap: 12
+  gap: 12,
+  marginTop: 20
 }
 
 const pacienteItem = {
-  display: 'flex',
-  gap: 10,
-  alignItems: 'center',
   background: '#f8fafc',
   border: '1px solid #e5e7eb',
   borderRadius: 12,
-  padding: 12
-}
-
-const acoesFormulario = {
-  display: 'flex',
-  gap: 12,
-  marginBottom: 25,
-  flexWrap: 'wrap'
-}
-
-const card = {
-  background: '#fff',
-  borderRadius: 16,
-  padding: 20,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
-}
-
-const fotoBox = {
-  width: 100,
-  height: 100,
-  borderRadius: 16,
-  background: '#f1f5f9',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  overflow: 'hidden',
-  color: '#777',
-  fontSize: 12
-}
-
-const fotoImg = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover'
-}
-
-const acoes = {
+  padding: 12,
   display: 'flex',
   gap: 10,
   alignItems: 'flex-start',
-  flexWrap: 'wrap'
+  cursor: 'pointer'
+}
+
+const textarea = {
+  width: '100%',
+  minHeight: 120,
+  padding: 14,
+  borderRadius: 10,
+  border: '1px solid #ccc',
+  marginBottom: 15
 }
 
 const inputBusca = {
@@ -690,32 +641,76 @@ const inputBusca = {
   border: '1px solid #ccc'
 }
 
-const label = {
-  display: 'block',
-  fontWeight: 'bold',
-  marginTop: 12,
-  marginBottom: 6
+const card = {
+  background: '#fff',
+  padding: 20,
+  borderRadius: 16,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+}
+
+const acoes = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap',
+  marginTop: 15
 }
 
 const small = {
+  display: 'block',
   color: '#666',
+  marginTop: 10,
   fontSize: 13
+}
+
+const label = {
+  display: 'block',
+  fontWeight: 'bold',
+  marginBottom: 8
 }
 
 const botaoPrincipal = {
   background: '#0f766e',
   color: '#fff',
   border: 'none',
-  borderRadius: 12,
   padding: 14,
+  borderRadius: 12,
   cursor: 'pointer',
-  fontWeight: 'bold'
+  fontWeight: 'bold',
+  marginRight: 10
 }
 
 const botaoSecundario = {
   background: '#ddd',
   border: 'none',
-  borderRadius: 12,
   padding: 14,
+  borderRadius: 12,
   cursor: 'pointer',
   fontWeight: 'bold'
+}
+
+const botaoAzul = {
+  background: '#2563eb',
+  color: '#fff',
+  border: 'none',
+  padding: 10,
+  borderRadius: 10,
+  cursor: 'pointer'
+}
+
+const botaoEditar = {
+  background: '#f59e0b',
+  color: '#fff',
+  border: 'none',
+  padding: 10,
+  borderRadius: 10,
+  cursor: 'pointer'
+}
+
+const botaoExcluir = {
+  background: '#dc2626',
+  color: '#fff',
+  border: 'none',
+  padding: 10,
+  borderRadius: 10,
+  cursor: 'pointer'
+}
