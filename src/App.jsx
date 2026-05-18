@@ -9,6 +9,7 @@ import Financeiro from './pages/Financeiro'
 import Familia from './pages/Familia'
 import Profissionais from './pages/Profissionais'
 import Configuracoes from './pages/Configuracoes'
+import Layout from './components/Layout'
 
 function getUsuario() {
   try {
@@ -29,7 +30,7 @@ function Protegida({ children, permitido = [] }) {
 
   if (tipo === 'familia') {
     return permitido.includes('Família')
-      ? children
+      ? <Layout>{children}</Layout>
       : <Navigate to="/familia" replace />
   }
 
@@ -44,7 +45,7 @@ function Protegida({ children, permitido = [] }) {
     return <Navigate to="/dashboard" replace />
   }
 
-  return children
+  return <Layout>{children}</Layout>
 }
 
 export default function App() {
