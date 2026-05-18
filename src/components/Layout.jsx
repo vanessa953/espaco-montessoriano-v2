@@ -1,33 +1,59 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 
 export default function Layout({ children }) {
-  const navigate = useNavigate()
   const usuario = JSON.parse(localStorage.getItem('usuario') || '{}')
   const tipo = localStorage.getItem('tipo_usuario')
-  const nivel = usuario?.nivel_acesso || 'Terapeuta'
+  const nivel = usuario?.nivel_acesso || 'Colaborador'
   const [menuAberto, setMenuAberto] = useState(false)
 
   function sair() {
     localStorage.removeItem('em_session')
     localStorage.removeItem('usuario')
     localStorage.removeItem('tipo_usuario')
-    navigate('/')
+    window.location.href = '/'
   }
 
   function irPara(rota) {
-    navigate(rota)
+    window.location.href = rota
     setMenuAberto(false)
   }
 
   const menusProfissionais = [
-    { nome: 'Dashboard', rota: '/dashboard', perfis: ['Administradora', 'Coordenação', 'Recepção', 'Financeiro', 'Supervisor', 'Terapeuta'] },
-    { nome: 'Pacientes', rota: '/pacientes', perfis: ['Administradora', 'Coordenação', 'Recepção', 'Supervisor', 'Terapeuta'] },
-    { nome: 'Agenda', rota: '/agenda', perfis: ['Administradora', 'Coordenação', 'Recepção', 'Supervisor', 'Terapeuta'] },
-    { nome: 'Prontuário', rota: '/prontuario', perfis: ['Administradora', 'Coordenação', 'Supervisor', 'Terapeuta'] },
-    { nome: 'Financeiro', rota: '/financeiro', perfis: ['Administradora', 'Financeiro'] },
-    { nome: 'Profissionais', rota: '/profissionais', perfis: ['Administradora', 'Coordenação'] },
-    { nome: 'Configurações', rota: '/configuracoes', perfis: ['Administradora'] }
+    {
+      nome: 'Dashboard',
+      rota: '/dashboard',
+      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Financeiro', 'Supervisor', 'Colaborador', 'Estagiário']
+    },
+    {
+      nome: 'Pacientes',
+      rota: '/pacientes',
+      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Supervisor', 'Colaborador', 'Estagiário']
+    },
+    {
+      nome: 'Agenda',
+      rota: '/agenda',
+      perfis: ['Administradora', 'Coordenação', 'Auxiliar ADM', 'Recepção', 'Supervisor', 'Colaborador', 'Estagiário']
+    },
+    {
+      nome: 'Prontuário',
+      rota: '/prontuario',
+      perfis: ['Administradora', 'Coordenação', 'Supervisor', 'Colaborador']
+    },
+    {
+      nome: 'Financeiro',
+      rota: '/financeiro',
+      perfis: ['Administradora', 'Financeiro']
+    },
+    {
+      nome: 'Profissionais',
+      rota: '/profissionais',
+      perfis: ['Administradora', 'Coordenação']
+    },
+    {
+      nome: 'Configurações',
+      rota: '/configuracoes',
+      perfis: ['Administradora']
+    }
   ]
 
   const menusFamilia = [
