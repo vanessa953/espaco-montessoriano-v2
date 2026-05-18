@@ -1,79 +1,136 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
-const menu = [
-  ['Dashboard', '/dashboard'],
-  ['Pacientes', '/pacientes'],
-  ['Agenda', '/agenda'],
-  ['Prontuário', '/prontuario'],
-  ['Financeiro', '/financeiro'],
-  ['App Família', '/familia'],
-  ['Profissionais', '/profissionais'],
-  ['Configurações', '/configuracoes']
-]
-
-export default function Layout({ title, subtitle, children }) {
-  const location = useLocation()
+export default function Layout({ children }) {
   const navigate = useNavigate()
+  const usuario = JSON.parse(localStorage.getItem('usuario') || '{}')
+  const tipo = localStorage.getItem('tipo_usuario')
+  const nivel = usuario?.nivel_acesso || 'Terapeuta'
 
   function sair() {
     localStorage.removeItem('em_session')
+    localStorage.removeItem('usuario')
+    localStorage.removeItem('tipo_usuario')
     navigate('/')
   }
 
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Arial' }}>
-      <aside style={{ width: 260, background: '#0f766e', color: 'white', padding: 20 }}>
-        <h2>Espaço Montessoriano</h2>
+  const menusProfissionais = [
+    { nome: 'Dashboard', rota: '/dashboard', perfis: ['Administradora', 'Coordenação', 'Recepção', 'Financeiro', 'Supervisor', 'Terapeuta'] },
+    { nome: 'Pacientes', rota: '/pacientes', perfis: ['Administradora', 'Coordenação', 'Recepção', 'Supervisor', 'Terapeuta'] },
+    { nome: 'Agenda', rota: '/agenda', perfis: ['Administradora', 'Coordenação', 'Recepção', 'Supervisor', 'Terapeuta'] },
+    { nome: 'Prontuário', rota: '/prontuario', perfis: ['Administradora', 'Coordenação', 'Supervisor', 'Terapeuta'] },
+    { nome: 'Financeiro', rota: '/financeiro', perfis: ['Administradora', 'Financeiro'] },
+    { nome: 'Profissionais', rota: '/profissionais', perfis: ['Administradora', 'Coordenação'] },
+    { nome: 'Configurações', rota: '/configuracoes', perfis: ['Administradora'] }
+  ]
 
-        <nav style={{ display: 'grid', gap: 10, marginTop: 30 }}>
-          {menu.map(([label, href]) => (
-            <Link
-              key={href}
-              to={href}
-              style={{
-                color: 'white',
-                padding: 10,
-                borderRadius: 8,
-                textDecoration: 'none',
-                background:
-                  location.pathname === href
-                    ? 'rgba(255,255,255,0.2)'
-                    : 'transparent'
-              }}
+  const menusFamilia = [
+    { nome: 'App Família', rota: '/familia' }
+  ]
+
+  const menus =
+    tipo === 'familia'
+      ? menusFamilia
+      : menusProfissionais.filter(
+          (item) =>
+            nivel === 'Administradora' ||
+            item.perfis.includes(nivel)
+        )
+
+  return (
+    <div style={pagina}>
+      <aside style={sidebar}>
+        <h2 style={logo}>Espaço Montessoriano</h2>
+
+        <p style={perfil}>
+          {usuario?.nome || 'Usuário'}
+          <br />
+          <small>{tipo === 'familia' ? 'Família' : nivel}</small>
+        </p>
+
+        <nav style={menu}>
+          {menus.map((item) => (
+            <button
+              key={item.rota}
+              onClick={() => navigate(item.rota)}
+              style={botaoMenu}
             >
-              {label}
-            </Link>
+              {item.nome}
+            </button>
           ))}
         </nav>
 
-        <button
-          onClick={sair}
-          style={{
-            marginTop: 30,
-            padding: 10,
-            width: '100%'
-          }}
-        >
+        <button onClick={sair} style={botaoSair}>
           Sair
         </button>
       </aside>
 
-      <main style={{ flex: 1, background: '#f5f5f5' }}>
-        <header
-          style={{
-            background: 'white',
-            padding: 25,
-            borderBottom: '1px solid #ddd'
-          }}
-        >
-          <h1 style={{ margin: 0 }}>{title}</h1>
-          <p>{subtitle}</p>
-        </header>
-
-        <section style={{ padding: 30 }}>
-          {children}
-        </section>
+      <main style={conteudo}>
+        {children}
       </main>
     </div>
   )
+}
+
+const pagina = {
+  display: 'flex',
+  minHeight: '100vh',
+  background: '#f5f7fb',
+  fontFamily: 'Arial'
+}
+
+const sidebar = {
+  width: 260,
+  background: '#0f766e',
+  color: '#fff',
+  padding: 24,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 20,
+  position: 'sticky',
+  top: 0,
+  height: '100vh'
+}
+
+const logo = {
+  fontSize: 24,
+  margin: 0
+}
+
+const perfil = {
+  background: 'rgba(255,255,255,0.12)',
+  padding: 14,
+  borderRadius: 14,
+  lineHeight: 1.5
+}
+
+const menu = {
+  display: 'grid',
+  gap: 10
+}
+
+const botaoMenu = {
+  background: 'rgba(255,255,255,0.15)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: 12,
+  cursor: 'pointer',
+  textAlign: 'left',
+  fontWeight: 'bold'
+}
+
+const botaoSair = {
+  marginTop: 'auto',
+  background: '#dc2626',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: 12,
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
+
+const conteudo = {
+  flex: 1,
+  minWidth: 0
 }
