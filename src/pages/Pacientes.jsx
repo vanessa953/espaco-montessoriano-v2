@@ -1,8 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const AREAS_ATENDIMENTO = [
+  'ABA',
+  'Psicologia',
+  'Fonoaudiologia',
+  'Psicopedagogia',
+  'Terapia Ocupacional',
+  'Nutrição',
+  'Psicomotricidade',
+  'Acompanhamento Pedagógico',
+  'Avaliação Neuropsicológica Cognitiva',
+  'Mapeamento Cerebral',
+  'Neuromodulação'
+]
+
 export default function Pacientes() {
+  const usuario = JSON.parse(localStorage.getItem('usuario') || '{}')
+
+  const [aba, setAba] = useState('cadastro')
   const [pacientes, setPacientes] = useState([])
+  const [vinculos, setVinculos] = useState([])
   const [busca, setBusca] = useState('')
   const [editandoId, setEditandoId] = useState(null)
 
@@ -21,6 +39,7 @@ export default function Pacientes() {
     endereco: '',
     escola: '',
     serie: '',
+    area_atendimento: '',
     diagnostico: '',
     observacoes: '',
     status: 'Ativo',
@@ -29,22 +48,27 @@ export default function Pacientes() {
     foto_url: ''
   })
 
-  async function carregarPacientes() {
-    const { data, error } = await supabase
+  async function carregarDados() {
+    const { data: pacientesData, error: pacientesError } = await supabase
       .from('pacientes')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.log(error)
-      return
+    if (pacientesError) {
+      console.log(pacientesError)
     }
 
-    setPacientes(data || [])
+    const { data: vinculosData } = await supabase
+      .from('profissional_pacientes')
+      .select('*')
+      .eq('ativo', true)
+
+    setPacientes(pacientesData || [])
+    setVinculos(vinculosData || [])
   }
 
   useEffect(() => {
-    carregarPacientes()
+    carregarDados()
   }, [])
 
   function atualizarCampo(campo, valor) {
@@ -222,7 +246,8 @@ export default function Pacientes() {
     alert(editandoId ? 'Paciente atualizado com sucesso.' : 'Paciente cadastrado com sucesso.')
 
     limparFormulario()
-    carregarPacientes()
+    carregarDados()
+    setAba('lista')
   }
 
   function limparFormulario() {
@@ -242,6 +267,7 @@ export default function Pacientes() {
       endereco: '',
       escola: '',
       serie: '',
+      area_atendimento: '',
       diagnostico: '',
       observacoes: '',
       status: 'Ativo',
@@ -268,6 +294,7 @@ export default function Pacientes() {
       endereco: paciente.endereco || '',
       escola: paciente.escola || '',
       serie: paciente.serie || '',
+      area_atendimento: paciente.area_atendimento || '',
       diagnostico: paciente.diagnostico || '',
       observacoes: paciente.observacoes || '',
       status: paciente.status || 'Ativo',
@@ -276,6 +303,7 @@ export default function Pacientes() {
       foto_url: paciente.foto_url || ''
     })
 
+    setAba('cadastro')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -294,7 +322,7 @@ export default function Pacientes() {
       return
     }
 
-    carregarPacientes()
+    carregarDados()
   }
 
   function copiarAcesso(paciente) {
@@ -320,181 +348,238 @@ Link: https://app.espacomontessoriano.com`
     window.open(`https://wa.me/55${telefone}`, '_blank')
   }
 
+  const pacientesVisiveis = useMemo(() => {
+    const nivel = usuario?.nivel_acesso || 'Colaborador'
+
+    if (['Administradora', 'Coordenação', 'Recepção', 'Auxiliar ADM'].includes(nivel)) {
+      return pacientes
+    }
+
+    if (nivel === 'Supervisor') {
+      return pacientes.filter(
+        (p) => p.area_atendimento && p.area_atendimento === usuario?.area_supervisao
+      )
+    }
+
+    if (nivel === 'Colaborador' || nivel === 'Estagiário') {
+      const idsPermitidos = vinculos
+        .filter((v) => v.profissional_id === usuario?.id && v.ativo !== false)
+        .map((v) => v.paciente_id)
+
+      return pacientes.filter((p) => idsPermitidos.includes(p.id))
+    }
+
+    return []
+  }, [pacientes, vinculos, usuario])
+
   const pacientesFiltrados = useMemo(() => {
     const texto = busca.toLowerCase()
 
-    return pacientes.filter((p) => {
+    return pacientesVisiveis.filter((p) => {
       return (
         p.nome?.toLowerCase().includes(texto) ||
         p.responsavel?.toLowerCase().includes(texto) ||
+        p.area_atendimento?.toLowerCase().includes(texto) ||
         p.cpf?.includes(texto) ||
         p.cpf_responsavel?.includes(texto)
       )
     })
-  }, [pacientes, busca])
+  }, [pacientesVisiveis, busca])
 
   return (
     <div style={pagina}>
       <h1>Pacientes</h1>
 
-      <p style={{ color: '#666', marginBottom: 30 }}>
-        Cadastro completo de pacientes, foto, documentos e acesso automático ao App Família.
+      <p style={{ color: '#666', marginBottom: 25 }}>
+        Cadastro completo de pacientes, área de atendimento, foto, documentos e acesso ao App Família.
       </p>
 
-      <div style={box}>
-        <h2>{editandoId ? 'Editar paciente' : 'Cadastrar paciente'}</h2>
+      <div style={abas}>
+        <button
+          onClick={() => setAba('cadastro')}
+          style={aba === 'cadastro' ? abaAtiva : abaBotao}
+        >
+          Cadastrar paciente
+        </button>
 
-        <div style={areaFoto}>
-          <div style={fotoBox}>
-            {previewFoto || form.foto_url ? (
-              <img src={previewFoto || form.foto_url} alt="Foto do paciente" style={fotoImg} />
-            ) : (
-              <span>Sem foto</span>
-            )}
-          </div>
-
-          <div>
-            <label style={label}>Foto do paciente</label>
-            <input type="file" accept="image/*" onChange={selecionarFoto} />
-
-            <p style={small}>
-              A foto será enviada para o Supabase Storage e vinculada ao cadastro.
-            </p>
-          </div>
-        </div>
-
-        <div style={grid}>
-          <input placeholder="Nome do paciente" value={form.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
-          <input type="date" value={form.data_nascimento} onChange={(e) => atualizarCampo('data_nascimento', e.target.value)} />
-          <input placeholder="CPF do paciente" value={form.cpf} onChange={(e) => atualizarCampo('cpf', e.target.value)} />
-          <input placeholder="Responsável" value={form.responsavel} onChange={(e) => atualizarCampo('responsavel', e.target.value)} />
-          <input placeholder="CPF do responsável" value={form.cpf_responsavel} onChange={(e) => atualizarCampo('cpf_responsavel', e.target.value)} />
-          <input placeholder="WhatsApp" value={form.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
-          <input placeholder="E-mail" value={form.email} onChange={(e) => atualizarCampo('email', e.target.value)} />
-          <input placeholder="Endereço" value={form.endereco} onChange={(e) => atualizarCampo('endereco', e.target.value)} />
-          <input placeholder="Escola" value={form.escola} onChange={(e) => atualizarCampo('escola', e.target.value)} />
-          <input placeholder="Série" value={form.serie} onChange={(e) => atualizarCampo('serie', e.target.value)} />
-
-          <select value={form.status} onChange={(e) => atualizarCampo('status', e.target.value)}>
-            <option>Ativo</option>
-            <option>Inativo</option>
-            <option>Lista de espera</option>
-            <option>Alta</option>
-          </select>
-
-          <div />
-
-          <div style={acessoBox}>
-            <h3>Acesso App Família</h3>
-
-            <input
-              placeholder="Login da família"
-              value={form.login_familia}
-              onChange={(e) => atualizarCampo('login_familia', e.target.value)}
-            />
-
-            <input
-              placeholder="Senha da família"
-              value={form.senha_familia}
-              onChange={(e) => atualizarCampo('senha_familia', e.target.value)}
-              style={{ marginTop: 10 }}
-            />
-
-            <p style={small}>
-              Se deixar em branco, o sistema cria login e senha automaticamente.
-            </p>
-          </div>
-
-          <div>
-            <label style={label}>Documentos do paciente</label>
-            <input type="file" multiple onChange={selecionarDocumentos} />
-
-            <p style={small}>
-              Anexe laudos, relatórios, documentos escolares, avaliações ou PDFs.
-            </p>
-          </div>
-
-          <textarea
-            placeholder="Diagnóstico / hipótese diagnóstica"
-            value={form.diagnostico}
-            onChange={(e) => atualizarCampo('diagnostico', e.target.value)}
-            style={{ gridColumn: '1 / span 2', minHeight: 90 }}
-          />
-
-          <textarea
-            placeholder="Observações clínicas"
-            value={form.observacoes}
-            onChange={(e) => atualizarCampo('observacoes', e.target.value)}
-            style={{ gridColumn: '1 / span 2', minHeight: 120 }}
-          />
-
-          <button onClick={salvarPaciente} style={botaoPrincipal}>
-            {editandoId ? 'Atualizar paciente' : 'Cadastrar paciente'}
-          </button>
-
-          <button onClick={limparFormulario} style={botaoSecundario}>
-            Limpar
-          </button>
-        </div>
+        <button
+          onClick={() => setAba('lista')}
+          style={aba === 'lista' ? abaAtiva : abaBotao}
+        >
+          Pacientes cadastrados
+        </button>
       </div>
 
-      <div style={box}>
-        <h2>Buscar pacientes</h2>
+      {aba === 'cadastro' && (
+        <div style={box}>
+          <h2>{editandoId ? 'Editar paciente' : 'Cadastrar paciente'}</h2>
 
-        <input
-          placeholder="Buscar por paciente, responsável ou CPF"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          style={inputBusca}
-        />
-      </div>
+          <div style={areaFoto}>
+            <div style={fotoBox}>
+              {previewFoto || form.foto_url ? (
+                <img src={previewFoto || form.foto_url} alt="Foto do paciente" style={fotoImg} />
+              ) : (
+                <span>Sem foto</span>
+              )}
+            </div>
 
-      <h2>Pacientes cadastrados</h2>
+            <div>
+              <label style={label}>Foto do paciente</label>
+              <input type="file" accept="image/*" onChange={selecionarFoto} />
 
-      <div style={{ display: 'grid', gap: 15 }}>
-        {pacientesFiltrados.map((p) => (
-          <div key={p.id} style={card}>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              <div style={miniFotoBox}>
-                {p.foto_url ? (
-                  <img src={p.foto_url} alt={p.nome} style={miniFotoImg} />
-                ) : (
-                  <span>Sem foto</span>
-                )}
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <h3>{p.nome}</h3>
-                <p><strong>Responsável:</strong> {p.responsavel || '-'}</p>
-                <p><strong>WhatsApp:</strong> {p.telefone || '-'}</p>
-                <p><strong>Escola:</strong> {p.escola || '-'}</p>
-                <p><strong>Série:</strong> {p.serie || '-'}</p>
-                <p><strong>Status:</strong> {p.status || '-'}</p>
-                <p><strong>Login Família:</strong> {p.login_familia || '-'}</p>
-                <p><strong>Senha Família:</strong> {p.senha_familia || '-'}</p>
-              </div>
-
-              <div style={acoes}>
-                <button onClick={() => copiarAcesso(p)} style={botaoAzul}>
-                  Copiar acesso
-                </button>
-
-                <button onClick={() => abrirWhatsApp(p.telefone)} style={botaoWhats}>
-                  WhatsApp
-                </button>
-
-                <button onClick={() => editarPaciente(p)} style={botaoEditar}>
-                  Editar
-                </button>
-
-                <button onClick={() => excluirPaciente(p.id)} style={botaoExcluir}>
-                  Excluir
-                </button>
-              </div>
+              <p style={small}>
+                A foto será enviada para o Supabase Storage e vinculada ao cadastro.
+              </p>
             </div>
           </div>
-        ))}
-      </div>
+
+          <div style={grid}>
+            <input placeholder="Nome do paciente" value={form.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
+            <input type="date" value={form.data_nascimento} onChange={(e) => atualizarCampo('data_nascimento', e.target.value)} />
+            <input placeholder="CPF do paciente" value={form.cpf} onChange={(e) => atualizarCampo('cpf', e.target.value)} />
+            <input placeholder="Responsável" value={form.responsavel} onChange={(e) => atualizarCampo('responsavel', e.target.value)} />
+            <input placeholder="CPF do responsável" value={form.cpf_responsavel} onChange={(e) => atualizarCampo('cpf_responsavel', e.target.value)} />
+            <input placeholder="WhatsApp" value={form.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
+            <input placeholder="E-mail" value={form.email} onChange={(e) => atualizarCampo('email', e.target.value)} />
+            <input placeholder="Endereço" value={form.endereco} onChange={(e) => atualizarCampo('endereco', e.target.value)} />
+            <input placeholder="Escola" value={form.escola} onChange={(e) => atualizarCampo('escola', e.target.value)} />
+            <input placeholder="Série" value={form.serie} onChange={(e) => atualizarCampo('serie', e.target.value)} />
+
+            <select value={form.area_atendimento} onChange={(e) => atualizarCampo('area_atendimento', e.target.value)}>
+              <option value="">Área principal de atendimento</option>
+              {AREAS_ATENDIMENTO.map((area) => (
+                <option key={area}>{area}</option>
+              ))}
+            </select>
+
+            <select value={form.status} onChange={(e) => atualizarCampo('status', e.target.value)}>
+              <option>Ativo</option>
+              <option>Inativo</option>
+              <option>Lista de espera</option>
+              <option>Alta</option>
+            </select>
+
+            <div style={acessoBox}>
+              <h3>Acesso App Família</h3>
+
+              <input
+                placeholder="Login da família"
+                value={form.login_familia}
+                onChange={(e) => atualizarCampo('login_familia', e.target.value)}
+              />
+
+              <input
+                placeholder="Senha da família"
+                value={form.senha_familia}
+                onChange={(e) => atualizarCampo('senha_familia', e.target.value)}
+                style={{ marginTop: 10 }}
+              />
+
+              <p style={small}>
+                Se deixar em branco, o sistema cria login e senha automaticamente.
+              </p>
+            </div>
+
+            <div>
+              <label style={label}>Documentos do paciente</label>
+              <input type="file" multiple onChange={selecionarDocumentos} />
+
+              <p style={small}>
+                Anexe laudos, relatórios, documentos escolares, avaliações ou PDFs.
+              </p>
+            </div>
+
+            <textarea
+              placeholder="Diagnóstico / hipótese diagnóstica"
+              value={form.diagnostico}
+              onChange={(e) => atualizarCampo('diagnostico', e.target.value)}
+              style={{ gridColumn: '1 / span 2', minHeight: 90 }}
+            />
+
+            <textarea
+              placeholder="Observações clínicas"
+              value={form.observacoes}
+              onChange={(e) => atualizarCampo('observacoes', e.target.value)}
+              style={{ gridColumn: '1 / span 2', minHeight: 120 }}
+            />
+
+            <button onClick={salvarPaciente} style={botaoPrincipal}>
+              {editandoId ? 'Atualizar paciente' : 'Cadastrar paciente'}
+            </button>
+
+            <button onClick={limparFormulario} style={botaoSecundario}>
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {aba === 'lista' && (
+        <>
+          <div style={box}>
+            <h2>Buscar pacientes</h2>
+
+            <input
+              placeholder="Buscar por paciente, responsável, área ou CPF"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              style={inputBusca}
+            />
+
+            <p style={small}>
+              Total visível para seu perfil: {pacientesFiltrados.length}
+            </p>
+          </div>
+
+          <h2>Pacientes cadastrados</h2>
+
+          <div style={{ display: 'grid', gap: 15 }}>
+            {pacientesFiltrados.map((p) => (
+              <div key={p.id} style={card}>
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                  <div style={miniFotoBox}>
+                    {p.foto_url ? (
+                      <img src={p.foto_url} alt={p.nome} style={miniFotoImg} />
+                    ) : (
+                      <span>Sem foto</span>
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <h3>{p.nome}</h3>
+                    <p><strong>Responsável:</strong> {p.responsavel || '-'}</p>
+                    <p><strong>WhatsApp:</strong> {p.telefone || '-'}</p>
+                    <p><strong>Escola:</strong> {p.escola || '-'}</p>
+                    <p><strong>Série:</strong> {p.serie || '-'}</p>
+                    <p><strong>Área:</strong> {p.area_atendimento || '-'}</p>
+                    <p><strong>Status:</strong> {p.status || '-'}</p>
+                    <p><strong>Login Família:</strong> {p.login_familia || '-'}</p>
+                    <p><strong>Senha Família:</strong> {p.senha_familia || '-'}</p>
+                  </div>
+
+                  <div style={acoes}>
+                    <button onClick={() => copiarAcesso(p)} style={botaoAzul}>
+                      Copiar acesso
+                    </button>
+
+                    <button onClick={() => abrirWhatsApp(p.telefone)} style={botaoWhats}>
+                      WhatsApp
+                    </button>
+
+                    <button onClick={() => editarPaciente(p)} style={botaoEditar}>
+                      Editar
+                    </button>
+
+                    <button onClick={() => excluirPaciente(p.id)} style={botaoExcluir}>
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -504,6 +589,29 @@ const pagina = {
   fontFamily: 'Arial',
   background: '#f5f7fb',
   minHeight: '100vh'
+}
+
+const abas = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap',
+  marginBottom: 20
+}
+
+const abaBotao = {
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #ddd',
+  background: '#fff',
+  cursor: 'pointer',
+  fontWeight: 'bold'
+}
+
+const abaAtiva = {
+  ...abaBotao,
+  background: '#0f766e',
+  color: '#fff',
+  border: 'none'
 }
 
 const box = {
