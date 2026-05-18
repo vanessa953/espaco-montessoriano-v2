@@ -1,0 +1,36 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: Arial, sans-serif;
+}
+
+@media (max-width: 900px) {
+  aside {
+    display: none !important;
+  }
+
+  header {
+    display: flex !important;
+  }
+
+  main {
+    padding-top: 58px;
+    width: 100%;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+  }
+}
