@@ -5,8 +5,10 @@ export default function Pacientes() {
   const [pacientes, setPacientes] = useState([])
   const [busca, setBusca] = useState('')
   const [editandoId, setEditandoId] = useState(null)
+
   const [fotoArquivo, setFotoArquivo] = useState(null)
   const [previewFoto, setPreviewFoto] = useState('')
+  const [documentos, setDocumentos] = useState([])
 
   const [form, setForm] = useState({
     nome: '',
@@ -53,24 +55,30 @@ export default function Pacientes() {
   }
 
   function selecionarFoto(e) {
-    const arquivo = e.target.files[0]
-
+    const arquivo = e.target.files?.[0]
     if (!arquivo) return
 
     setFotoArquivo(arquivo)
     setPreviewFoto(URL.createObjectURL(arquivo))
   }
 
-  async function enviarFoto(nomePaciente) {
-    if (!fotoArquivo) return form.foto_url || ''
+  function selecionarDocumentos(e) {
+    setDocumentos(Array.from(e.target.files || []))
+  }
 
-    const extensao = fotoArquivo.name.split('.').pop()
-    const nomeLimpo = nomePaciente
+  function limparTexto(texto) {
+    return String(texto || '')
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]/g, '-')
+  }
 
+  async function enviarFoto(nomePaciente) {
+    if (!fotoArquivo) return form.foto_url || ''
+
+    const extensao = fotoArquivo.name.split('.').pop()
+    const nomeLimpo = limparTexto(nomePaciente || 'paciente')
     const caminho = `${nomeLimpo}-${Date.now()}.${extensao}`
 
     const { error } = await supabase.storage
@@ -82,7 +90,7 @@ export default function Pacientes() {
 
     if (error) {
       console.log(error)
-      alert('Erro ao enviar foto')
+      alert('Erro ao enviar foto do paciente.')
       return form.foto_url || ''
     }
 
@@ -91,6 +99,51 @@ export default function Pacientes() {
       .getPublicUrl(caminho)
 
     return data.publicUrl
+  }
+
+  async function enviarDocumentos(pacienteId) {
+    if (!documentos.length) return
+
+    const registros = []
+
+    for (const arquivo of documentos) {
+      const caminho = `${pacienteId}/${Date.now()}-${arquivo.name}`
+
+      const { error } = await supabase.storage
+        .from('pacientes-documentos')
+        .upload(caminho, arquivo, {
+          cacheControl: '3600',
+          upsert: true
+        })
+
+      if (error) {
+        console.log(error)
+        continue
+      }
+
+      const { data } = supabase.storage
+        .from('pacientes-documentos')
+        .getPublicUrl(caminho)
+
+      registros.push({
+        paciente_id: pacienteId,
+        nome_arquivo: arquivo.name,
+        tipo: arquivo.type,
+        url: data.publicUrl,
+        categoria: 'Documento'
+      })
+    }
+
+    if (registros.length) {
+      const { error } = await supabase
+        .from('pacientes_documentos')
+        .insert(registros)
+
+      if (error) {
+        console.log(error)
+        alert('Paciente salvo, mas houve erro ao registrar documentos.')
+      }
+    }
   }
 
   function gerarAcessoFamilia() {
@@ -105,33 +158,36 @@ export default function Pacientes() {
     const cpfLimpo = form.cpf_responsavel?.replace(/\D/g, '')
 
     const login =
-      cpfLimpo && cpfLimpo.length >= 6
+      form.login_familia ||
+      (cpfLimpo && cpfLimpo.length >= 6
         ? cpfLimpo
-        : `${primeiroNome}${Math.floor(Math.random() * 9999)}`
+        : `${primeiroNome}${Math.floor(Math.random() * 9999)}`)
 
-    const senha = `${primeiroNome}123`
+    const senha = form.senha_familia || `${primeiroNome}123`
 
     return {
-      login_familia: form.login_familia || login,
-      senha_familia: form.senha_familia || senha
+      login_familia: login,
+      senha_familia: senha
     }
   }
 
   async function salvarPaciente() {
     if (!form.nome) {
-      alert('Digite o nome do paciente')
+      alert('Digite o nome do paciente.')
       return
     }
 
     const fotoUrl = await enviarFoto(form.nome)
-    const acessos = gerarAcessoFamilia()
+    const acesso = gerarAcessoFamilia()
 
     const dados = {
       ...form,
-      ...acessos,
+      ...acesso,
       foto_url: fotoUrl,
       data_nascimento: form.data_nascimento || null
     }
+
+    let pacienteId = editandoId
 
     if (editandoId) {
       const { error } = await supabase
@@ -141,24 +197,29 @@ export default function Pacientes() {
 
       if (error) {
         console.log(error)
-        alert('Erro ao atualizar paciente')
+        alert('Erro ao atualizar paciente.')
         return
       }
-
-      alert('Paciente atualizado com sucesso')
     } else {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('pacientes')
         .insert([dados])
+        .select()
 
       if (error) {
         console.log(error)
-        alert('Erro ao cadastrar paciente')
+        alert('Erro ao cadastrar paciente.')
         return
       }
 
-      alert('Paciente cadastrado com sucesso')
+      pacienteId = data?.[0]?.id
     }
+
+    if (pacienteId) {
+      await enviarDocumentos(pacienteId)
+    }
+
+    alert(editandoId ? 'Paciente atualizado com sucesso.' : 'Paciente cadastrado com sucesso.')
 
     limparFormulario()
     carregarPacientes()
@@ -168,6 +229,7 @@ export default function Pacientes() {
     setEditandoId(null)
     setFotoArquivo(null)
     setPreviewFoto('')
+    setDocumentos([])
 
     setForm({
       nome: '',
@@ -189,28 +251,11 @@ export default function Pacientes() {
     })
   }
 
-  async function excluirPaciente(id) {
-    const confirmar = confirm('Deseja realmente excluir este paciente?')
-    if (!confirmar) return
-
-    const { error } = await supabase
-      .from('pacientes')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      console.log(error)
-      alert('Erro ao excluir')
-      return
-    }
-
-    carregarPacientes()
-  }
-
   function editarPaciente(paciente) {
     setEditandoId(paciente.id)
     setPreviewFoto(paciente.foto_url || '')
     setFotoArquivo(null)
+    setDocumentos([])
 
     setForm({
       nome: paciente.nome || '',
@@ -234,14 +279,40 @@ export default function Pacientes() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function copiarAcesso(login, senha) {
-    navigator.clipboard.writeText(`Login: ${login}\nSenha: ${senha}`)
-    alert('Acesso copiado')
+  async function excluirPaciente(id) {
+    const confirmar = confirm('Deseja realmente excluir este paciente?')
+    if (!confirmar) return
+
+    const { error } = await supabase
+      .from('pacientes')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.log(error)
+      alert('Erro ao excluir paciente.')
+      return
+    }
+
+    carregarPacientes()
+  }
+
+  function copiarAcesso(paciente) {
+    const texto = `Acesso ao App Família - Espaço Montessoriano
+
+Paciente: ${paciente.nome}
+Login: ${paciente.login_familia}
+Senha: ${paciente.senha_familia}
+
+Link: https://app.espacomontessoriano.com`
+
+    navigator.clipboard.writeText(texto)
+    alert('Acesso copiado.')
   }
 
   function abrirWhatsApp(numero) {
     if (!numero) {
-      alert('Paciente sem telefone cadastrado')
+      alert('Paciente sem WhatsApp cadastrado.')
       return
     }
 
@@ -250,9 +321,9 @@ export default function Pacientes() {
   }
 
   const pacientesFiltrados = useMemo(() => {
-    return pacientes.filter((p) => {
-      const texto = busca.toLowerCase()
+    const texto = busca.toLowerCase()
 
+    return pacientes.filter((p) => {
       return (
         p.nome?.toLowerCase().includes(texto) ||
         p.responsavel?.toLowerCase().includes(texto) ||
@@ -263,38 +334,31 @@ export default function Pacientes() {
   }, [pacientes, busca])
 
   return (
-    <div style={{ padding: 30, fontFamily: 'Arial', background: '#f5f7fb', minHeight: '100vh' }}>
+    <div style={pagina}>
       <h1>Pacientes</h1>
 
       <p style={{ color: '#666', marginBottom: 30 }}>
-        Cadastro profissional de pacientes com foto e acesso automático ao App Família.
+        Cadastro completo de pacientes, foto, documentos e acesso automático ao App Família.
       </p>
 
       <div style={box}>
         <h2>{editandoId ? 'Editar paciente' : 'Cadastrar paciente'}</h2>
 
-        <div style={{ display: 'flex', gap: 25, alignItems: 'flex-start', marginBottom: 25 }}>
-          <div>
-            <div style={fotoBox}>
-              {previewFoto ? (
-                <img src={previewFoto} alt="Foto do paciente" style={fotoImg} />
-              ) : (
-                <span style={{ color: '#777' }}>Sem foto</span>
-              )}
-            </div>
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={selecionarFoto}
-              style={{ marginTop: 10 }}
-            />
+        <div style={areaFoto}>
+          <div style={fotoBox}>
+            {previewFoto || form.foto_url ? (
+              <img src={previewFoto || form.foto_url} alt="Foto do paciente" style={fotoImg} />
+            ) : (
+              <span>Sem foto</span>
+            )}
           </div>
 
-          <div style={{ flex: 1 }}>
-            <p style={{ marginTop: 0 }}>
-              A foto ficará vinculada ao cadastro do paciente e poderá ser usada no prontuário,
-              agenda e App Família.
+          <div>
+            <label style={label}>Foto do paciente</label>
+            <input type="file" accept="image/*" onChange={selecionarFoto} />
+
+            <p style={small}>
+              A foto será enviada para o Supabase Storage e vinculada ao cadastro.
             </p>
           </div>
         </div>
@@ -320,6 +384,36 @@ export default function Pacientes() {
 
           <div />
 
+          <div style={acessoBox}>
+            <h3>Acesso App Família</h3>
+
+            <input
+              placeholder="Login da família"
+              value={form.login_familia}
+              onChange={(e) => atualizarCampo('login_familia', e.target.value)}
+            />
+
+            <input
+              placeholder="Senha da família"
+              value={form.senha_familia}
+              onChange={(e) => atualizarCampo('senha_familia', e.target.value)}
+              style={{ marginTop: 10 }}
+            />
+
+            <p style={small}>
+              Se deixar em branco, o sistema cria login e senha automaticamente.
+            </p>
+          </div>
+
+          <div>
+            <label style={label}>Documentos do paciente</label>
+            <input type="file" multiple onChange={selecionarDocumentos} />
+
+            <p style={small}>
+              Anexe laudos, relatórios, documentos escolares, avaliações ou PDFs.
+            </p>
+          </div>
+
           <textarea
             placeholder="Diagnóstico / hipótese diagnóstica"
             value={form.diagnostico}
@@ -335,7 +429,7 @@ export default function Pacientes() {
           />
 
           <button onClick={salvarPaciente} style={botaoPrincipal}>
-            {editandoId ? 'Atualizar Paciente' : 'Cadastrar Paciente'}
+            {editandoId ? 'Atualizar paciente' : 'Cadastrar paciente'}
           </button>
 
           <button onClick={limparFormulario} style={botaoSecundario}>
@@ -351,15 +445,15 @@ export default function Pacientes() {
           placeholder="Buscar por paciente, responsável ou CPF"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          style={{ width: '100%', padding: 14, borderRadius: 10, border: '1px solid #ccc' }}
+          style={inputBusca}
         />
       </div>
 
-      <h2 style={{ marginTop: 30 }}>Pacientes cadastrados</h2>
+      <h2>Pacientes cadastrados</h2>
 
-      <div style={{ display: 'grid', gap: 15, marginTop: 20 }}>
+      <div style={{ display: 'grid', gap: 15 }}>
         {pacientesFiltrados.map((p) => (
-          <div key={p.id} style={cardPaciente}>
+          <div key={p.id} style={card}>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               <div style={miniFotoBox}>
                 {p.foto_url ? (
@@ -370,35 +464,32 @@ export default function Pacientes() {
               </div>
 
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0 }}>{p.nome}</h3>
-                <p><strong>Responsável:</strong> {p.responsavel}</p>
-                <p><strong>WhatsApp:</strong> {p.telefone}</p>
-                <p><strong>Escola:</strong> {p.escola}</p>
-                <p><strong>Série:</strong> {p.serie}</p>
-                <p><strong>Status:</strong> {p.status}</p>
+                <h3>{p.nome}</h3>
+                <p><strong>Responsável:</strong> {p.responsavel || '-'}</p>
+                <p><strong>WhatsApp:</strong> {p.telefone || '-'}</p>
+                <p><strong>Escola:</strong> {p.escola || '-'}</p>
+                <p><strong>Série:</strong> {p.serie || '-'}</p>
+                <p><strong>Status:</strong> {p.status || '-'}</p>
+                <p><strong>Login Família:</strong> {p.login_familia || '-'}</p>
+                <p><strong>Senha Família:</strong> {p.senha_familia || '-'}</p>
               </div>
 
-              <div>
-                <p><strong>Login Família:</strong> {p.login_familia}</p>
-                <p><strong>Senha Família:</strong> {p.senha_familia}</p>
+              <div style={acoes}>
+                <button onClick={() => copiarAcesso(p)} style={botaoAzul}>
+                  Copiar acesso
+                </button>
 
-                <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
-                  <button onClick={() => copiarAcesso(p.login_familia, p.senha_familia)} style={botaoCopiar}>
-                    Copiar acesso
-                  </button>
+                <button onClick={() => abrirWhatsApp(p.telefone)} style={botaoWhats}>
+                  WhatsApp
+                </button>
 
-                  <button onClick={() => abrirWhatsApp(p.telefone)} style={botaoWhats}>
-                    WhatsApp
-                  </button>
+                <button onClick={() => editarPaciente(p)} style={botaoEditar}>
+                  Editar
+                </button>
 
-                  <button onClick={() => editarPaciente(p)} style={botaoEditar}>
-                    Editar
-                  </button>
-
-                  <button onClick={() => excluirPaciente(p.id)} style={botaoExcluir}>
-                    Excluir
-                  </button>
-                </div>
+                <button onClick={() => excluirPaciente(p.id)} style={botaoExcluir}>
+                  Excluir
+                </button>
               </div>
             </div>
           </div>
@@ -406,6 +497,13 @@ export default function Pacientes() {
       </div>
     </div>
   )
+}
+
+const pagina = {
+  padding: 30,
+  fontFamily: 'Arial',
+  background: '#f5f7fb',
+  minHeight: '100vh'
 }
 
 const box = {
@@ -422,6 +520,14 @@ const grid = {
   gap: 15
 }
 
+const areaFoto = {
+  display: 'flex',
+  gap: 25,
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  marginBottom: 25
+}
+
 const fotoBox = {
   width: 150,
   height: 150,
@@ -431,7 +537,8 @@ const fotoBox = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  overflow: 'hidden'
+  overflow: 'hidden',
+  color: '#777'
 }
 
 const fotoImg = {
@@ -459,11 +566,45 @@ const miniFotoImg = {
   objectFit: 'cover'
 }
 
-const cardPaciente = {
+const acessoBox = {
+  background: '#f8fafc',
+  border: '1px solid #e5e7eb',
+  borderRadius: 14,
+  padding: 15
+}
+
+const card = {
   background: '#fff',
   borderRadius: 16,
   padding: 20,
   boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+}
+
+const acoes = {
+  display: 'flex',
+  gap: 10,
+  alignItems: 'flex-start',
+  flexWrap: 'wrap'
+}
+
+const inputBusca = {
+  width: '100%',
+  padding: 14,
+  borderRadius: 10,
+  border: '1px solid #ccc'
+}
+
+const label = {
+  display: 'block',
+  fontWeight: 'bold',
+  marginBottom: 8
+}
+
+const small = {
+  display: 'block',
+  color: '#666',
+  fontSize: 13,
+  marginTop: 8
 }
 
 const botaoPrincipal = {
@@ -484,7 +625,7 @@ const botaoSecundario = {
   cursor: 'pointer'
 }
 
-const botaoCopiar = {
+const botaoAzul = {
   background: '#2563eb',
   color: '#fff',
   border: 'none',
