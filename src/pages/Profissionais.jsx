@@ -1,6 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const NIVEIS_ACESSO = [
+  'Administradora',
+  'Coordenação',
+  'Auxiliar ADM',
+  'Recepção',
+  'Financeiro',
+  'Supervisor',
+  'Colaborador',
+  'Estagiário'
+]
+
+const AREAS_ATENDIMENTO = [
+  'ABA',
+  'Psicologia',
+  'Fonoaudiologia',
+  'Psicopedagogia',
+  'Terapia Ocupacional',
+  'Nutrição',
+  'Psicomotricidade',
+  'Acompanhamento Pedagógico',
+  'Avaliação Neuropsicológica Cognitiva',
+  'Mapeamento Cerebral',
+  'Neuromodulação'
+]
+
 export default function Profissionais() {
   const [profissionais, setProfissionais] = useState([])
   const [pacientes, setPacientes] = useState([])
@@ -23,7 +48,9 @@ export default function Profissionais() {
     cargo: '',
     especialidade: '',
     conselho: '',
-    nivel_acesso: 'Terapeuta',
+    nivel_acesso: 'Colaborador',
+    funcao_equipe: '',
+    area_supervisao: '',
     observacoes: '',
     ativo: true,
     foto_url: '',
@@ -45,7 +72,7 @@ export default function Profissionais() {
 
     const { data: pacientesData } = await supabase
       .from('pacientes')
-      .select('id, nome, responsavel')
+      .select('id, nome, responsavel, area_atendimento')
       .order('nome')
 
     const { data: vinculosData } = await supabase
@@ -75,7 +102,7 @@ export default function Profissionais() {
   }
 
   function gerarAcessoProfissional(dados) {
-    const primeiroNome = limparTexto(dados.nome?.split(' ')[0]) || 'profissional'
+    const primeiroNome = limparTexto(dados.nome?.split(' ')[0]) || 'colaborador'
 
     const login =
       dados.login_app ||
@@ -292,7 +319,9 @@ export default function Profissionais() {
       cargo: profissional.cargo || '',
       especialidade: profissional.especialidade || '',
       conselho: profissional.conselho || '',
-      nivel_acesso: profissional.nivel_acesso || 'Terapeuta',
+      nivel_acesso: profissional.nivel_acesso || 'Colaborador',
+      funcao_equipe: profissional.funcao_equipe || '',
+      area_supervisao: profissional.area_supervisao || '',
       observacoes: profissional.observacoes || '',
       ativo: profissional.ativo ?? true,
       foto_url: profissional.foto_url || '',
@@ -343,7 +372,9 @@ export default function Profissionais() {
       cargo: '',
       especialidade: '',
       conselho: '',
-      nivel_acesso: 'Terapeuta',
+      nivel_acesso: 'Colaborador',
+      funcao_equipe: '',
+      area_supervisao: '',
       observacoes: '',
       ativo: true,
       foto_url: '',
@@ -376,7 +407,9 @@ Senha: ${profissional.senha_app}`
       p.nome?.toLowerCase().includes(texto) ||
       p.cargo?.toLowerCase().includes(texto) ||
       p.especialidade?.toLowerCase().includes(texto) ||
-      p.nivel_acesso?.toLowerCase().includes(texto)
+      p.nivel_acesso?.toLowerCase().includes(texto) ||
+      p.funcao_equipe?.toLowerCase().includes(texto) ||
+      p.area_supervisao?.toLowerCase().includes(texto)
     ))
   }, [profissionais, busca])
 
@@ -394,39 +427,48 @@ Senha: ${profissional.senha_app}`
 
   return (
     <div style={pagina}>
-      <h1>Profissionais</h1>
+      <h1>Profissionais e Equipe</h1>
 
       <p style={{ color: '#666', marginBottom: 25 }}>
-        Cadastro da equipe, acesso ao app, pagamento, documentos e vínculo com pacientes.
+        Cadastro da equipe, função, área, acesso ao app, pagamento, documentos e vínculo com pacientes.
       </p>
 
       <div style={box}>
         <h2>{editandoId ? 'Editar profissional' : 'Cadastrar profissional'}</h2>
 
         <div style={grid}>
-          <input placeholder="Nome" value={form.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
+          <input placeholder="Nome completo" value={form.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
           <input placeholder="CPF" value={form.cpf} onChange={(e) => atualizarCampo('cpf', e.target.value)} />
           <input placeholder="E-mail" value={form.email} onChange={(e) => atualizarCampo('email', e.target.value)} />
-          <input placeholder="Telefone" value={form.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
-          <input placeholder="Cargo" value={form.cargo} onChange={(e) => atualizarCampo('cargo', e.target.value)} />
+          <input placeholder="Telefone / WhatsApp" value={form.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
+          <input placeholder="Cargo / função profissional" value={form.cargo} onChange={(e) => atualizarCampo('cargo', e.target.value)} />
           <input placeholder="Especialidade" value={form.especialidade} onChange={(e) => atualizarCampo('especialidade', e.target.value)} />
           <input placeholder="Conselho profissional" value={form.conselho} onChange={(e) => atualizarCampo('conselho', e.target.value)} />
 
           <select value={form.nivel_acesso} onChange={(e) => atualizarCampo('nivel_acesso', e.target.value)}>
-            <option>Administradora</option>
-            <option>Coordenação</option>
-            <option>Recepção</option>
-            <option>Financeiro</option>
-            <option>Supervisor</option>
-            <option>Terapeuta</option>
+            {NIVEIS_ACESSO.map((nivel) => (
+              <option key={nivel}>{nivel}</option>
+            ))}
+          </select>
+
+          <select value={form.funcao_equipe || ''} onChange={(e) => atualizarCampo('funcao_equipe', e.target.value)}>
+            <option value="">Função na equipe</option>
+            {NIVEIS_ACESSO.map((nivel) => (
+              <option key={nivel}>{nivel}</option>
+            ))}
+          </select>
+
+          <select value={form.area_supervisao || ''} onChange={(e) => atualizarCampo('area_supervisao', e.target.value)}>
+            <option value="">Área de atuação/supervisão</option>
+            {AREAS_ATENDIMENTO.map((area) => (
+              <option key={area}>{area}</option>
+            ))}
           </select>
 
           <select value={form.ativo ? 'Ativo' : 'Inativo'} onChange={(e) => atualizarCampo('ativo', e.target.value === 'Ativo')}>
             <option>Ativo</option>
             <option>Inativo</option>
           </select>
-
-          <div />
         </div>
       </div>
 
@@ -467,7 +509,7 @@ Senha: ${profissional.senha_app}`
       </div>
 
       <div style={box}>
-        <h2>Pacientes vinculados ao profissional</h2>
+        <h2>Pacientes vinculados ao colaborador</h2>
 
         <div style={grid}>
           <select value={tipoVinculo} onChange={(e) => setTipoVinculo(e.target.value)}>
@@ -476,6 +518,7 @@ Senha: ${profissional.senha_app}`
             <option>Acompanhamento pedagógico</option>
             <option>Avaliação</option>
             <option>Equipe multidisciplinar</option>
+            <option>Estágio supervisionado</option>
           </select>
         </div>
 
@@ -490,7 +533,7 @@ Senha: ${profissional.senha_app}`
               <span>
                 <strong>{paciente.nome}</strong>
                 <br />
-                <small>{paciente.responsavel || '-'}</small>
+                <small>{paciente.responsavel || '-'} | {paciente.area_atendimento || 'sem área'}</small>
               </span>
             </label>
           ))}
@@ -541,7 +584,7 @@ Senha: ${profissional.senha_app}`
         <h2>Buscar profissional</h2>
 
         <input
-          placeholder="Buscar por nome, cargo, especialidade ou nível"
+          placeholder="Buscar por nome, cargo, especialidade, área ou nível"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           style={inputBusca}
@@ -557,7 +600,9 @@ Senha: ${profissional.senha_app}`
 
             <p><strong>Cargo:</strong> {p.cargo || '-'}</p>
             <p><strong>Especialidade:</strong> {p.especialidade || '-'}</p>
-            <p><strong>Nível:</strong> {p.nivel_acesso || '-'}</p>
+            <p><strong>Nível de acesso:</strong> {p.nivel_acesso || '-'}</p>
+            <p><strong>Função equipe:</strong> {p.funcao_equipe || '-'}</p>
+            <p><strong>Área atuação/supervisão:</strong> {p.area_supervisao || '-'}</p>
             <p><strong>Status:</strong> {p.ativo !== false ? 'Ativo' : 'Inativo'}</p>
             <p><strong>Tipo pagamento:</strong> {p.tipo_pagamento || '-'}</p>
             <p><strong>Valor hora:</strong> R$ {p.valor_hora || 0}</p>
