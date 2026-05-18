@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+
+function dataBR(data) {
+  if (!data) return '-'
+  const [ano, mes, dia] = String(data).split('-')
+  return `${dia}/${mes}/${ano}`
+}
 
 function dinheiro(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', {
@@ -9,31 +14,45 @@ function dinheiro(valor) {
   })
 }
 
-function dataBR(data) {
-  if (!data) return '-'
-  const [ano, mes, dia] = String(data).split('-')
-  return `${dia}/${mes}/${ano}`
-}
-
 export default function Familia() {
-  const navigate = useNavigate()
   const usuario = JSON.parse(localStorage.getItem('usuario') || '{}')
+  const tipoUsuario = localStorage.getItem('tipo_usuario')
 
-  const [paciente, setPaciente] = useState(null)
+  const admin = usuario?.nivel_acesso === 'Administradora'
+
+  const [pacientes, setPacientes] = useState([])
+  const [pacienteSelecionado, setPacienteSelecionado] = useState(null)
+
   const [agenda, setAgenda] = useState([])
   const [prontuarios, setProntuarios] = useState([])
-  const [anexos, setAnexos] = useState([])
   const [financeiro, setFinanceiro] = useState([])
-  const [aba, setAba] = useState('inicio')
+  const [anexos, setAnexos] = useState([])
 
   async function carregarDados() {
-    if (!usuario?.id) return
+    if (admin) {
+      const { data } = await supabase
+        .from('pacientes')
+        .select('*')
+        .order('nome')
 
-    const { data: pacienteData } = await supabase
-      .from('pacientes')
-      .select('*')
-      .eq('id', usuario.id)
-      .maybeSingle()
+      setPacientes(data || [])
+
+      if (data?.length && !pacienteSelecionado) {
+        setPacienteSelecionado(data[0])
+      }
+
+      return
+    }
+
+    setPacienteSelecionado(usuario)
+  }
+
+  useEffect(() => {
+    carregarDados()
+  }, [])
+
+  async function carregarPaciente(id) {
+    if (!id) return
 
     const { data: agendaData } = await supabase
       .from('agenda')
@@ -41,29 +60,28 @@ export default function Familia() {
         *,
         profissionais(nome)
       `)
-      .eq('paciente_id', usuario.id)
-      .order('data', { ascending: true })
+      .eq('paciente_id', id)
+      .order('data', { ascending: false })
 
     const { data: prontuarioData } = await supabase
       .from('prontuarios')
       .select('*')
-      .eq('paciente_id', usuario.id)
+      .eq('paciente_id', id)
       .eq('liberar_familia', true)
-      .order('created_at', { ascending: false })
+      .order('data_sessao', { ascending: false })
 
     const { data: financeiroData } = await supabase
       .from('financeiro')
       .select('*')
-      .eq('paciente_id', usuario.id)
-      .order('vencimento', { ascending: false })
+      .eq('paciente_id', id)
+      .order('created_at', { ascending: false })
 
     const { data: anexosData } = await supabase
       .from('prontuario_anexos')
       .select('*')
-      .eq('paciente_id', usuario.id)
+      .eq('paciente_id', id)
       .order('created_at', { ascending: false })
 
-    setPaciente(pacienteData || usuario)
     setAgenda(agendaData || [])
     setProntuarios(prontuarioData || [])
     setFinanceiro(financeiroData || [])
@@ -71,64 +89,34 @@ export default function Familia() {
   }
 
   useEffect(() => {
-    carregarDados()
-  }, [])
-
-  const totalPendente = useMemo(() => {
-    return financeiro
-      .filter((item) => item.status !== 'Pago')
-      .reduce((soma, item) => soma + Number(item.valor || 0), 0)
-  }, [financeiro])
+    if (pacienteSelecionado?.id) {
+      carregarPaciente(pacienteSelecionado.id)
+    }
+  }, [pacienteSelecionado])
 
   const proximosAtendimentos = useMemo(() => {
     const hoje = new Date().toISOString().slice(0, 10)
 
-    return agenda.filter((item) => item.data >= hoje)
+    return agenda.filter((a) => a.data >= hoje)
   }, [agenda])
 
+  const financeiroPendente = useMemo(() => {
+    return financeiro.filter((f) => f.status !== 'Pago')
+  }, [financeiro])
+
   function sair() {
-    localStorage.removeItem('em_session')
-    localStorage.removeItem('usuario')
-    localStorage.removeItem('tipo_usuario')
-    navigate('/')
-  }
-
-  async function confirmarPresenca(item) {
-    const { error } = await supabase
-      .from('agenda')
-      .update({
-        confirmado_familia: true,
-        data_confirmacao_familia: new Date().toISOString(),
-        status: item.status === 'Agendado' ? 'Confirmado' : item.status
-      })
-      .eq('id', item.id)
-
-    if (error) {
-      console.log(error)
-      alert('Erro ao confirmar presença.')
-      return
-    }
-
-    alert('Presença confirmada com sucesso.')
-    carregarDados()
-  }
-
-  function abrirWhatsAppClinica() {
-    const telefone = '5561993183351'
-    const mensagem = encodeURIComponent(
-      `Olá! Sou responsável por ${paciente?.nome || 'paciente'} e gostaria de falar com o Espaço Montessoriano.`
-    )
-
-    window.open(`https://wa.me/${telefone}?text=${mensagem}`, '_blank')
+    localStorage.clear()
+    window.location.href = '/'
   }
 
   return (
     <div style={pagina}>
-      <div style={cabecalho}>
+      <div style={topo}>
         <div>
           <h1>App Família</h1>
+
           <p style={{ color: '#666' }}>
-            Acompanhe agenda, resumos, documentos e financeiro do paciente.
+            Agenda, evolução terapêutica, orientações e documentos.
           </p>
         </div>
 
@@ -137,318 +125,324 @@ export default function Familia() {
         </button>
       </div>
 
-      {paciente && (
-        <div style={boxPerfil}>
-          {paciente.foto_url ? (
-            <img src={paciente.foto_url} alt={paciente.nome} style={foto} />
-          ) : (
-            <div style={fotoVazia}>Sem foto</div>
-          )}
+      {admin && (
+        <div style={box}>
+          <h2>Visualização administradora</h2>
 
-          <div>
-            <h2>{paciente.nome}</h2>
-            <p><strong>Responsável:</strong> {paciente.responsavel || '-'}</p>
-            <p><strong>Escola:</strong> {paciente.escola || '-'}</p>
-            <p><strong>Série:</strong> {paciente.serie || '-'}</p>
-            <p><strong>Status:</strong> {paciente.status || 'Ativo'}</p>
-          </div>
+          <select
+            value={pacienteSelecionado?.id || ''}
+            onChange={(e) => {
+              const paciente = pacientes.find((p) => p.id === e.target.value)
+              setPacienteSelecionado(paciente)
+            }}
+            style={select}
+          >
+            {pacientes.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
-      <div style={abas}>
-        <button onClick={() => setAba('inicio')} style={aba === 'inicio' ? abaAtiva : abaBotao}>
-          Início
-        </button>
+      {pacienteSelecionado && (
+        <>
+          <div style={boxPaciente}>
+            <div style={fotoBox}>
+              {pacienteSelecionado?.foto_url ? (
+                <img
+                  src={pacienteSelecionado.foto_url}
+                  alt={pacienteSelecionado.nome}
+                  style={foto}
+                />
+              ) : (
+                <span>Sem foto</span>
+              )}
+            </div>
 
-        <button onClick={() => setAba('agenda')} style={aba === 'agenda' ? abaAtiva : abaBotao}>
-          Agenda
-        </button>
+            <div>
+              <h2>{pacienteSelecionado.nome}</h2>
 
-        <button onClick={() => setAba('resumos')} style={aba === 'resumos' ? abaAtiva : abaBotao}>
-          Resumos
-        </button>
+              <p>
+                <strong>Responsável:</strong>{' '}
+                {pacienteSelecionado.responsavel || '-'}
+              </p>
 
-        <button onClick={() => setAba('documentos')} style={aba === 'documentos' ? abaAtiva : abaBotao}>
-          Documentos
-        </button>
+              <p>
+                <strong>Área principal:</strong>{' '}
+                {pacienteSelecionado.area_atendimento || '-'}
+              </p>
 
-        <button onClick={() => setAba('financeiro')} style={aba === 'financeiro' ? abaAtiva : abaBotao}>
-          Financeiro
-        </button>
-      </div>
+              <p>
+                <strong>Escola:</strong>{' '}
+                {pacienteSelecionado.escola || '-'}
+              </p>
 
-      {aba === 'inicio' && (
-        <div>
-          <div style={cards}>
-            <Resumo titulo="Próximos atendimentos" valor={proximosAtendimentos.length} />
-            <Resumo titulo="Resumos disponíveis" valor={prontuarios.length} />
-            <Resumo titulo="Documentos disponíveis" valor={anexos.length} />
-            <Resumo titulo="Financeiro pendente" valor={dinheiro(totalPendente)} />
+              <p>
+                <strong>Série:</strong>{' '}
+                {pacienteSelecionado.serie || '-'}
+              </p>
+            </div>
+          </div>
+
+          <div style={gridResumo}>
+            <ResumoCard
+              titulo="Próximos atendimentos"
+              valor={proximosAtendimentos.length}
+            />
+
+            <ResumoCard
+              titulo="Registros liberados"
+              valor={prontuarios.length}
+            />
+
+            <ResumoCard
+              titulo="Pendências financeiras"
+              valor={financeiroPendente.length}
+            />
+
+            <ResumoCard
+              titulo="Documentos"
+              valor={anexos.length}
+            />
+          </div>
+
+          <div style={duasColunas}>
+            <div style={box}>
+              <h2>Agenda</h2>
+
+              {agenda.length === 0 && (
+                <p>Nenhum atendimento encontrado.</p>
+              )}
+
+              {agenda.map((item) => (
+                <div key={item.id} style={card}>
+                  <h3>
+                    {dataBR(item.data)} às {item.horario}
+                  </h3>
+
+                  <p>
+                    <strong>Serviço:</strong>{' '}
+                    {item.servico || '-'}
+                  </p>
+
+                  <p>
+                    <strong>Profissional:</strong>{' '}
+                    {item.profissionais?.nome || '-'}
+                  </p>
+
+                  <p>
+                    <strong>Status:</strong>{' '}
+                    {item.status || '-'}
+                  </p>
+
+                  <p>
+                    <strong>Modalidade:</strong>{' '}
+                    {item.modalidade || '-'}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div style={box}>
+              <h2>Financeiro</h2>
+
+              {financeiro.length === 0 && (
+                <p>Nenhum registro financeiro encontrado.</p>
+              )}
+
+              {financeiro.map((item) => (
+                <div key={item.id} style={card}>
+                  <h3>{item.descricao || 'Sessão'}</h3>
+
+                  <p>
+                    <strong>Valor:</strong>{' '}
+                    {dinheiro(item.valor)}
+                  </p>
+
+                  <p>
+                    <strong>Status:</strong>{' '}
+                    {item.status || '-'}
+                  </p>
+
+                  <p>
+                    <strong>Vencimento:</strong>{' '}
+                    {dataBR(item.vencimento)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={box}>
-            <h2>Próximo atendimento</h2>
+            <h2>Resumo das sessões</h2>
 
-            {proximosAtendimentos.length === 0 && (
-              <p>Nenhum atendimento futuro agendado.</p>
+            {prontuarios.length === 0 && (
+              <p>Nenhum registro liberado para família.</p>
             )}
 
-            {proximosAtendimentos.slice(0, 2).map((item) => (
-              <div key={item.id} style={card}>
-                <h3>{item.servico || 'Atendimento'}</h3>
-                <p><strong>Data:</strong> {dataBR(item.data)}</p>
-                <p><strong>Horário:</strong> {item.horario || '-'}</p>
-                <p><strong>Profissional:</strong> {item.profissionais?.nome || '-'}</p>
-                <p><strong>Status:</strong> {item.status || '-'}</p>
+            {prontuarios.map((item) => (
+              <div key={item.id} style={cardGrande}>
+                <h3>
+                  {dataBR(item.data_sessao)} — {item.servico || 'Sessão'}
+                </h3>
 
-                <div style={acoes}>
-                  {!item.confirmado_familia && (
-                    <button onClick={() => confirmarPresenca(item)} style={botaoConfirmar}>
-                      Confirmar presença
-                    </button>
-                  )}
+                <div style={secao}>
+                  <h4>Resumo da sessão</h4>
 
-                  {item.confirmado_familia && (
-                    <span style={seloConfirmado}>Presença confirmada</span>
-                  )}
+                  <p style={texto}>
+                    {item.resumo_sessao ||
+                      item.resumo_familia ||
+                      '-'}
+                  </p>
+                </div>
 
-                  {item.link_videochamada && (
-                    <a href={item.link_videochamada} target="_blank" style={botaoVideo}>
-                      Videochamada
-                    </a>
-                  )}
+                <div style={secao}>
+                  <h4>Orientações para família</h4>
+
+                  <p style={texto}>
+                    {item.orientacoes_familia || '-'}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
 
           <div style={box}>
-            <h2>Contato com a clínica</h2>
-            <p>Use este botão para falar diretamente com o Espaço Montessoriano.</p>
+            <h2>Documentos e anexos</h2>
 
-            <button onClick={abrirWhatsAppClinica} style={botaoWhats}>
-              Falar no WhatsApp
-            </button>
-          </div>
-        </div>
-      )}
+            {anexos.length === 0 && (
+              <p>Nenhum documento anexado.</p>
+            )}
 
-      {aba === 'agenda' && (
-        <div style={box}>
-          <h2>Agenda do paciente</h2>
+            {anexos.map((item) => (
+              <div key={item.id} style={card}>
+                <h3>{item.nome_arquivo}</h3>
 
-          {agenda.length === 0 && (
-            <p>Nenhum atendimento agendado no momento.</p>
-          )}
-
-          {agenda.map((item) => (
-            <div key={item.id} style={card}>
-              <h3>{item.servico || 'Atendimento'}</h3>
-
-              <p><strong>Data:</strong> {dataBR(item.data)}</p>
-              <p><strong>Horário:</strong> {item.horario || '-'} até {item.hora_fim || '-'}</p>
-              <p><strong>Profissional:</strong> {item.profissionais?.nome || '-'}</p>
-              <p><strong>Modalidade:</strong> {item.modalidade || '-'}</p>
-              <p><strong>Status:</strong> {item.status || '-'}</p>
-              <p><strong>Sala:</strong> {item.sala || '-'}</p>
-
-              <div style={acoes}>
-                {!item.confirmado_familia && (
-                  <button onClick={() => confirmarPresenca(item)} style={botaoConfirmar}>
-                    Confirmar presença
-                  </button>
-                )}
-
-                {item.confirmado_familia && (
-                  <span style={seloConfirmado}>Presença confirmada</span>
-                )}
-
-                {item.link_videochamada && (
-                  <a href={item.link_videochamada} target="_blank" style={botaoVideo}>
-                    Acessar videochamada
-                  </a>
-                )}
+                <a href={item.url} target="_blank">
+                  Abrir documento
+                </a>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {aba === 'resumos' && (
-        <div style={box}>
-          <h2>Resumos das sessões</h2>
-
-          {prontuarios.length === 0 && (
-            <p>Nenhum resumo liberado até o momento.</p>
-          )}
-
-          {prontuarios.map((item) => (
-            <div key={item.id} style={card}>
-              <h3>{item.servico || 'Sessão'}</h3>
-              <p><strong>Data:</strong> {dataBR(item.data_sessao)}</p>
-              <p><strong>Profissional:</strong> {item.profissional_nome || '-'}</p>
-
-              <h4>Resumo para família</h4>
-              <p>{item.resumo_familia || '-'}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {aba === 'documentos' && (
-        <div style={box}>
-          <h2>Documentos e anexos liberados</h2>
-
-          {anexos.length === 0 && (
-            <p>Nenhum documento disponível até o momento.</p>
-          )}
-
-          {anexos.map((item) => (
-            <div key={item.id} style={card}>
-              <h3>{item.nome_arquivo || 'Documento'}</h3>
-              <p><strong>Categoria:</strong> {item.categoria || '-'}</p>
-              <p><strong>Data:</strong> {dataBR(String(item.created_at || '').slice(0, 10))}</p>
-
-              <a href={item.url} target="_blank" style={botaoDocumento}>
-                Abrir documento
-              </a>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {aba === 'financeiro' && (
-        <div style={box}>
-          <h2>Financeiro</h2>
-
-          <h3>Total pendente: {dinheiro(totalPendente)}</h3>
-
-          {financeiro.length === 0 && (
-            <p>Nenhum lançamento financeiro disponível.</p>
-          )}
-
-          {financeiro.map((item) => (
-            <div key={item.id} style={card}>
-              <h3>{item.servico || item.descricao || 'Lançamento'}</h3>
-              <p><strong>Valor:</strong> {dinheiro(item.valor)}</p>
-              <p><strong>Vencimento:</strong> {dataBR(item.vencimento)}</p>
-              <p><strong>Status:</strong> {item.status || '-'}</p>
-              <p><strong>Modalidade:</strong> {item.modalidade || '-'}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
 }
 
-function Resumo({ titulo, valor }) {
+function ResumoCard({ titulo, valor }) {
   return (
-    <div style={box}>
-      <h3>{titulo}</h3>
-      <h2>{valor}</h2>
+    <div style={cardResumo}>
+      <span>{titulo}</span>
+      <strong>{valor}</strong>
     </div>
   )
 }
 
 const pagina = {
   padding: 30,
-  fontFamily: 'Arial',
   background: '#f5f7fb',
-  minHeight: '100vh'
+  minHeight: '100vh',
+  fontFamily: 'Arial'
 }
 
-const cabecalho = {
+const topo = {
   display: 'flex',
   justifyContent: 'space-between',
+  alignItems: 'center',
   gap: 20,
-  alignItems: 'center',
-  marginBottom: 25,
-  flexWrap: 'wrap'
-}
-
-const boxPerfil = {
-  background: '#fff',
-  padding: 25,
-  borderRadius: 18,
-  display: 'flex',
-  gap: 20,
-  alignItems: 'center',
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 25,
-  flexWrap: 'wrap'
-}
-
-const foto = {
-  width: 110,
-  height: 110,
-  borderRadius: 18,
-  objectFit: 'cover'
-}
-
-const fotoVazia = {
-  width: 110,
-  height: 110,
-  borderRadius: 18,
-  background: '#e2e8f0',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#666'
-}
-
-const abas = {
-  display: 'flex',
-  gap: 10,
   flexWrap: 'wrap',
-  marginBottom: 20
-}
-
-const abaBotao = {
-  padding: 12,
-  borderRadius: 12,
-  border: '1px solid #ddd',
-  background: '#fff',
-  cursor: 'pointer',
-  fontWeight: 'bold'
-}
-
-const abaAtiva = {
-  ...abaBotao,
-  background: '#0f766e',
-  color: '#fff',
-  border: 'none'
-}
-
-const cards = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, 1fr)',
-  gap: 15,
-  marginBottom: 20
+  marginBottom: 25
 }
 
 const box = {
   background: '#fff',
-  padding: 22,
   borderRadius: 16,
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-  marginBottom: 20
+  padding: 24,
+  marginBottom: 24,
+  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+}
+
+const boxPaciente = {
+  ...box,
+  display: 'flex',
+  gap: 25,
+  alignItems: 'center',
+  flexWrap: 'wrap'
+}
+
+const fotoBox = {
+  width: 140,
+  height: 140,
+  borderRadius: 20,
+  overflow: 'hidden',
+  background: '#f1f5f9',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center'
+}
+
+const foto = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover'
+}
+
+const gridResumo = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 15,
+  marginBottom: 25
+}
+
+const cardResumo = {
+  background: '#fff',
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+  display: 'grid',
+  gap: 8
+}
+
+const duasColunas = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 20,
+  marginBottom: 25
 }
 
 const card = {
   background: '#f8fafc',
   border: '1px solid #e5e7eb',
-  padding: 18,
   borderRadius: 14,
-  marginTop: 15
+  padding: 16,
+  marginBottom: 15
 }
 
-const acoes = {
-  display: 'flex',
-  gap: 10,
-  flexWrap: 'wrap',
-  marginTop: 12,
-  alignItems: 'center'
+const cardGrande = {
+  background: '#f8fafc',
+  border: '1px solid #e5e7eb',
+  borderRadius: 16,
+  padding: 20,
+  marginBottom: 20
+}
+
+const secao = {
+  marginTop: 18
+}
+
+const texto = {
+  whiteSpace: 'pre-line',
+  lineHeight: 1.7
+}
+
+const select = {
+  width: '100%',
+  padding: 14,
+  borderRadius: 12,
+  border: '1px solid #ccc'
 }
 
 const botaoSair = {
@@ -458,54 +452,5 @@ const botaoSair = {
   borderRadius: 12,
   padding: 12,
   cursor: 'pointer',
-  fontWeight: 'bold'
-}
-
-const botaoWhats = {
-  background: '#22c55e',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 12,
-  padding: 12,
-  cursor: 'pointer',
-  fontWeight: 'bold'
-}
-
-const botaoConfirmar = {
-  background: '#0f766e',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 12,
-  padding: 12,
-  cursor: 'pointer',
-  fontWeight: 'bold'
-}
-
-const seloConfirmado = {
-  background: '#dcfce7',
-  color: '#166534',
-  padding: 10,
-  borderRadius: 12,
-  fontWeight: 'bold'
-}
-
-const botaoVideo = {
-  display: 'inline-block',
-  background: '#7c3aed',
-  color: '#fff',
-  borderRadius: 12,
-  padding: 12,
-  textDecoration: 'none',
-  fontWeight: 'bold'
-}
-
-const botaoDocumento = {
-  display: 'inline-block',
-  background: '#2563eb',
-  color: '#fff',
-  borderRadius: 12,
-  padding: 12,
-  textDecoration: 'none',
-  marginTop: 10,
   fontWeight: 'bold'
 }
