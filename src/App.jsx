@@ -31,10 +31,13 @@ function Protegida({ children, permitido = [] }) {
     return null
   }
 
-  if (tipo === 'familia') {
-    if (permitido.includes('Família')) {
-      return <Layout>{children}</Layout>
-    }
+  if (path === '/familia') {
+  return (
+    <Protegida permitido={['Família', 'Administradora']}>
+      <Familia />
+    </Protegida>
+  )
+}
 
     window.location.href = '/familia'
     return null
